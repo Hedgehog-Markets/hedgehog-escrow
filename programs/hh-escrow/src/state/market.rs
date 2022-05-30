@@ -1,6 +1,10 @@
 use anchor_lang::prelude::*;
 
 use crate::state::{Outcome, UriResource};
+use crate::error::ErrorCode;
+
+/// 30 days max delay before a result is set.
+pub const MAX_DELAY_SEC: u32 = 86_400 * 30;
 
 /// The [Market] account.
 #[account]
@@ -47,4 +51,169 @@ pub struct Market {
 
 impl Market {
     pub const LEN: usize = 5 * 32 + 7 * 8 + 4 + 1 + 1 + 2 * 1 + UriResource::LEN;
+
+    /// Checks whether the market is finalized. If the `finalized` flag is not
+    /// flipped, checks conditions that would cause the market to be finalized,
+    /// and flips the flag if needed.
+    pub fn set_and_is_finalize(&mut self, now: u64) -> Result<bool> {
+        // Already finalized.
+        if self.finalized {
+            return Ok(true);
+        }
+
+        // Failed to fill funds.
+        if (self.yes_filled < self.yes_amount || self.no_filled < self.no_amount)
+            && now >= self.close_ts
+        {
+            self.finalized = true;
+            self.outcome = Outcome::Invalid;
+            return Ok(true);
+        }
+
+        // Beyond MAX_DELAY_SEC of the expiry.
+        if now
+            >= self
+                .expiry_ts
+                .checked_add(MAX_DELAY_SEC.into())
+                .ok_or(ErrorCode::Overflow)?
+        {
+            if self.outcome == Outcome::Open {
+                self.outcome = Outcome::Invalid;
+            }
+            self.finalized = true;
+            return Ok(true);
+        }
+
+        // Beyond resolution delay of the outcome.
+        if self.outcome != Outcome::Open
+            && now
+                >= self
+                    .outcome_ts
+                    .checked_add(self.resolution_delay.into())
+                    .ok_or(ErrorCode::Overflow)?
+        {
+            self.finalized = true;
+            return Ok(true);
+        }
+
+        Ok(false)
+    }
+
+    /// Same as `is_and_set_finalize`, but errors if the market is finalized.
+    pub fn set_and_check_finalize(&mut self, now: u64) -> Result<()> {
+        if self.set_and_is_finalize(now)? {
+            return Err(ErrorCode::AlreadyFinalized.into());
+        }
+
+        Ok(())
+    }
+}
+
+// Tests for finalize logic with a mocked timestamp.
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Checks that we return true if the finalized boolean is set to true.
+    #[test]
+    fn check_finalized_boolean() {
+        let mut market = Market {
+            finalized: true,
+            ..Default::default()
+        };
+
+        let result = market.set_and_is_finalize(0).unwrap();
+
+        assert_eq!(result, true);
+    }
+
+    // Check that we finalize the market if it fails to fill all its funds for
+    // the yes account.
+    #[test]
+    fn check_finalized_unfunded_yes() {
+        let mut market = Market {
+            yes_amount: 10,
+            yes_filled: 9,
+            ..Default::default()
+        };
+
+        let result = market.set_and_is_finalize(0).unwrap();
+
+        assert_eq!(result, true);
+        assert_eq!(market.finalized, true);
+        assert_eq!(market.outcome, Outcome::Invalid);
+    }
+
+    // Check that we finalize the market if it fails to fill all its funds for
+    // the no account.
+    #[test]
+    fn check_finalized_unfunded_no() {
+        let mut market = Market {
+            no_amount: 10,
+            no_filled: 9,
+            ..Default::default()
+        };
+
+        let result = market.set_and_is_finalize(0).unwrap();
+
+        assert_eq!(result, true);
+        assert_eq!(market.finalized, true);
+        assert_eq!(market.outcome, Outcome::Invalid);
+    }
+
+    // Check that we finalize the market and set the outcome to invalid if we
+    // fail to set any outcome before the max delay passes.
+    #[test]
+    fn check_finalized_max_delay_invalid() {
+        let mut market = Market {
+            resolution_delay: MAX_DELAY_SEC + 1,
+            ..Default::default()
+        };
+
+        let result = market.set_and_is_finalize(MAX_DELAY_SEC.into()).unwrap();
+
+        assert_eq!(result, true);
+        assert_eq!(market.finalized, true);
+        assert_eq!(market.outcome_ts, 0);
+        assert_eq!(market.outcome, Outcome::Invalid);
+    }
+
+    // Check that we finalize the market to the given outcome if we've passed
+    // the maximum delay allowed from the expiry time.
+    #[test]
+    fn check_finalized_max_delay_valid() {
+        let mut market = Market {
+            resolution_delay: MAX_DELAY_SEC + 2,
+            outcome_ts: 1,
+            outcome: Outcome::Yes,
+            ..Default::default()
+        };
+
+        let result = market.set_and_is_finalize(MAX_DELAY_SEC.into()).unwrap();
+
+        assert_eq!(result, true);
+        assert_eq!(market.finalized, true);
+        assert_eq!(market.outcome, Outcome::Yes);
+    }
+
+    // Check that we finalize the market to the given outcome if we've passed
+    // the resolution delay from when the outcome was set.
+    #[test]
+    fn check_finalized_resolution_delay() {
+        let mut market = Market {
+            resolution_delay: 10,
+            outcome_ts: (MAX_DELAY_SEC - 20).into(),
+            expiry_ts: 5,
+            outcome: Outcome::Yes,
+            ..Default::default()
+        };
+
+        let result = market
+            .set_and_is_finalize((MAX_DELAY_SEC - 10).into())
+            .unwrap();
+
+        assert_eq!(result, true);
+        assert_eq!(market.finalized, true);
+        assert_eq!(market.outcome, Outcome::Yes);
+    }
 }

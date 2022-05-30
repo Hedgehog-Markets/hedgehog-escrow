@@ -19,6 +19,10 @@ pub mod hh_escrow {
     ) -> ProgramResult {
         instructions::initialize_market::handler(ctx, params)
     }
+
+    pub fn initialize_user_position(ctx: Context<InitializeUserPosition>) -> ProgramResult {
+        instructions::initialize_user_position::handler(ctx)
+    }
 }
 
 #[derive(Accounts)]
