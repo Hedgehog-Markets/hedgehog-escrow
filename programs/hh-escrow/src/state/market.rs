@@ -55,7 +55,7 @@ impl Market {
     /// Checks whether the market is finalized. If the `finalized` flag is not
     /// flipped, checks conditions that would cause the market to be finalized,
     /// and flips the flag if needed.
-    pub fn set_and_is_finalize(&mut self, now: u64) -> Result<bool> {
+    pub fn finalize(&mut self, now: u64) -> Result<bool> {
         // Already finalized.
         if self.finalized {
             return Ok(true);
@@ -107,14 +107,15 @@ impl Market {
     /// of any transaction that needs this check, so any wasted compute is
     /// minimal.
     pub fn set_and_check_finalize(&mut self, now: u64) -> Result<()> {
-        if self.set_and_is_finalize(now)? {
-            return Err(ErrorCode::AlreadyFinalized.into());
+        if self.finalize(now)? {
+            return Err(error!(ErrorCode::AlreadyFinalized));
         }
 
         Ok(())
     }
 }
 
+// TODO: Mock the Clock implementation.
 // Tests for finalize logic with a mocked timestamp.
 #[cfg(test)]
 mod tests {
@@ -128,7 +129,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = market.set_and_is_finalize(0).unwrap();
+        let result = market.finalize(0).unwrap();
 
         assert_eq!(result, true);
     }
@@ -143,7 +144,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = market.set_and_is_finalize(0).unwrap();
+        let result = market.finalize(0).unwrap();
 
         assert_eq!(result, true);
         assert_eq!(market.finalized, true);
@@ -160,7 +161,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = market.set_and_is_finalize(0).unwrap();
+        let result = market.finalize(0).unwrap();
 
         assert_eq!(result, true);
         assert_eq!(market.finalized, true);
@@ -176,7 +177,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = market.set_and_is_finalize(MAX_DELAY_SEC.into()).unwrap();
+        let result = market.finalize(MAX_DELAY_SEC.into()).unwrap();
 
         assert_eq!(result, true);
         assert_eq!(market.finalized, true);
@@ -195,7 +196,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = market.set_and_is_finalize(MAX_DELAY_SEC.into()).unwrap();
+        let result = market.finalize(MAX_DELAY_SEC.into()).unwrap();
 
         assert_eq!(result, true);
         assert_eq!(market.finalized, true);
@@ -215,7 +216,7 @@ mod tests {
         };
 
         let result = market
-            .set_and_is_finalize((MAX_DELAY_SEC - 10).into())
+            .finalize((MAX_DELAY_SEC - 10).into())
             .unwrap();
 
         assert_eq!(result, true);

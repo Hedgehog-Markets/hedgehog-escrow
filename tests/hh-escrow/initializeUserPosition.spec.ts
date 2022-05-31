@@ -1,7 +1,6 @@
 import * as anchor from '@project-serum/anchor';
-import * as assert from 'assert';
 import type { Program } from '@project-serum/anchor';
-import { Keypair, Transaction } from '@solana/web3.js';
+import { Keypair, SendTransactionError, Transaction } from '@solana/web3.js';
 import type { HhEscrow } from '../../target/types/hh_escrow';
 import { intoU64, intoU64BN } from '../u64';
 import { createInitMintInstructions } from '../utils';
@@ -41,7 +40,7 @@ describe('initialize user position', () => {
     program.programId
   );
 
-  before(async () => {
+  beforeAll(async () => {
     const mintIxs = await createInitMintInstructions({
       mint: mint.publicKey,
       mintAuthority: provider.wallet.publicKey,
@@ -65,6 +64,8 @@ describe('initialize user position', () => {
   });
 
   it('initializes a user position correctly', async () => {
+    expect.assertions(3);
+
     const user = Keypair.generate();
     const [userPosition] = findProgramAddressSync(
       [
@@ -89,12 +90,14 @@ describe('initialize user position', () => {
       userPosition
     );
 
-    assert.ok(userPositionAccount.market.equals(market.publicKey));
-    assert.strictEqual(intoU64(userPositionAccount.yesAmount), 0n);
-    assert.strictEqual(intoU64(userPositionAccount.noAmount), 0n);
+    expect(userPositionAccount.market).toEqualPubkey(market.publicKey);
+    expect(intoU64(userPositionAccount.yesAmount)).toBe(0n);
+    expect(intoU64(userPositionAccount.noAmount)).toBe(0n);
   });
 
   it('fails to initialize a user position if the seeds are incorrect', async () => {
+    expect.assertions(1);
+
     const user = Keypair.generate();
     const [userPosition] = findProgramAddressSync(
       [
@@ -105,7 +108,7 @@ describe('initialize user position', () => {
       program.programId
     );
 
-    await assert.rejects(async () => {
+    try {
       await program.methods
         .initializeUserPosition()
         .accounts({
@@ -116,6 +119,8 @@ describe('initialize user position', () => {
         })
         .signers([user])
         .rpc();
-    });
+    } catch (e) {
+      expect(e).toBeInstanceOf(SendTransactionError);
+    }
   });
 });

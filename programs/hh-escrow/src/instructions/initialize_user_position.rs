@@ -20,7 +20,7 @@ pub struct InitializeUserPosition<'info> {
         payer = payer,
         seeds = [b"user", user.key().as_ref(), market.key().as_ref()],
         bump,
-        space = 8 + UserPosition::LEN
+        space = 8 + UserPosition::LEN,
     )]
     pub user_position: Account<'info, UserPosition>,
     pub system_program: Program<'info, System>,
