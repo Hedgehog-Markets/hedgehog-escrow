@@ -3,6 +3,10 @@ use solana_program::entrypoint::ProgramResult;
 
 use crate::state::{Market, UserPosition};
 
+/// Initializes a [UserPosition] account for the user.
+/// 
+/// Before initializing, checks if the market requires any state update. If it
+/// should be finalized, then it finalizes the market and exists early.
 #[derive(Accounts)]
 pub struct InitializeUserPosition<'info> {
     #[account(mut)]

@@ -100,6 +100,12 @@ impl Market {
     }
 
     /// Same as `is_and_set_finalize`, but errors if the market is finalized.
+    /// 
+    /// Note that this is slightly inefficient, as this will cause the
+    /// transaction to fail and revert writes that occur from
+    /// `is_and_set_finalize`. However, this should be called at the beginning
+    /// of any transaction that needs this check, so any wasted compute is
+    /// minimal.
     pub fn set_and_check_finalize(&mut self, now: u64) -> Result<()> {
         if self.set_and_is_finalize(now)? {
             return Err(ErrorCode::AlreadyFinalized.into());
