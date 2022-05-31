@@ -1,6 +1,7 @@
-use crate::state::Outcome;
-use crate::state::UriResource;
 use anchor_lang::prelude::*;
+
+use crate::state::{Outcome, UriResource};
+
 /// The [Market] account.
 #[account]
 #[derive(Default)]

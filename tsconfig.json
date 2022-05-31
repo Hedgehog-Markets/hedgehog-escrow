@@ -1,8 +1,9 @@
 {
   "compilerOptions": {
+    "baseUrl": ".",
     "moduleResolution": "node",
     "module": "commonjs",
-    "types": ["mocha"],
+    "types": ["jest"],
     "typeRoots": ["./node_modules/@types"],
     "lib": ["esnext"],
     "target": "es2022",

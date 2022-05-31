@@ -8,4 +8,6 @@ pub enum ErrorCode {
     InvalidCloseTimestamp,
     #[msg("Expiry timestamp must be greater than the close timestamp.")]
     InvalidExpiryTimestamp,
+    #[msg("Bump seed was non canonical.")]
+    NonCanonicalBumpSeed,
 }

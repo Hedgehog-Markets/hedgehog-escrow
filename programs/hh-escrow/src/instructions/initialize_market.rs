@@ -2,6 +2,8 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use solana_program::entrypoint::ProgramResult;
 
+use common::traits::KeyRef;
+
 use crate::error::ErrorCode;
 use crate::state::{Market, UriResource};
 
@@ -36,7 +38,7 @@ pub struct InitializeMarket<'info> {
     /// The authority for the two token accounts.
     ///
     /// CHECK: We do not read/write any data from this account.
-    #[account(seeds = [b"authority", market.key().as_ref()], bump)]
+    #[account(seeds = [b"authority", market.key_ref().as_ref()], bump)]
     pub authority: AccountInfo<'info>,
     /// The creator for the market.
     #[account(mut)]
@@ -49,7 +51,7 @@ pub struct InitializeMarket<'info> {
         payer = creator,
         token::mint = token_mint,
         token::authority = authority,
-        seeds = [b"yes", market.key().as_ref()],
+        seeds = [b"yes", market.key_ref().as_ref()],
         bump,
     )]
     pub yes_token_account: Account<'info, TokenAccount>,
@@ -59,7 +61,7 @@ pub struct InitializeMarket<'info> {
         payer = creator,
         token::mint = token_mint,
         token::authority = authority,
-        seeds = [b"no", market.key().as_ref()],
+        seeds = [b"no", market.key_ref().as_ref()],
         bump,
     )]
     pub no_token_account: Account<'info, TokenAccount>,
@@ -115,8 +117,14 @@ pub fn handler(ctx: Context<InitializeMarket>, params: InitializeMarketParams) -
     market.expiry_ts = expiry_ts;
     market.outcome_ts = 0;
     market.resolution_delay = resolution_delay;
-    market.yes_account_bump = *ctx.bumps.get("yes_token_account").unwrap();
-    market.no_account_bump = *ctx.bumps.get("no_token_account").unwrap();
+    market.yes_account_bump = *ctx
+        .bumps
+        .get("yes_token_account")
+        .ok_or(error!(ErrorCode::NonCanonicalBumpSeed))?;
+    market.no_account_bump = *ctx
+        .bumps
+        .get("no_token_account")
+        .ok_or(error!(ErrorCode::NonCanonicalBumpSeed))?;
 
     Ok(())
 }

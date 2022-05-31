@@ -1,7 +1,13 @@
 import * as anchor from '@project-serum/anchor';
 import * as assert from 'assert';
 import { Program, ProgramError, LangErrorCode } from '@project-serum/anchor';
-import { Keypair, PublicKey, Transaction } from '@solana/web3.js';
+import {
+  export_default,
+  Keypair,
+  PublicKey,
+  SendTransactionError,
+  Transaction,
+} from '@solana/web3.js';
 import type { HhEscrow } from '../../target/types/hh_escrow';
 import { intoU64, intoU64BN } from '../u64';
 import { createInitMintInstructions } from '../utils';
@@ -38,7 +44,7 @@ describe('hh-escrow', () => {
     noTokenAccount: PublicKey,
     noNonce: number;
 
-  before(async () => {
+  beforeAll(async () => {
     const mintIxs = await createInitMintInstructions({
       mint: mint.publicKey,
       mintAuthority: provider.wallet.publicKey,
@@ -66,6 +72,8 @@ describe('hh-escrow', () => {
   });
 
   it('initializes a market correctly', async () => {
+    expect.assertions(18);
+
     await program.methods
       .initializeMarket(initializeMarketParams)
       .accounts({
@@ -81,63 +89,67 @@ describe('hh-escrow', () => {
     const marketAccount = await program.account.market.fetch(market.publicKey);
 
     // TODO: Replace with utility assertions from common package.
-    assert.ok(marketAccount.creator.equals(provider.wallet.publicKey));
-    assert.ok(marketAccount.resolver.equals(resolver.publicKey));
-    assert.ok(marketAccount.tokenMint.equals(mint.publicKey));
-    assert.ok(marketAccount.yesTokenAccount.equals(yesTokenAccount));
-    assert.ok(marketAccount.noTokenAccount.equals(noTokenAccount));
-    assert.ok(marketAccount.yesAmount.eq(initializeMarketParams.yesAmount));
-    assert.strictEqual(intoU64(marketAccount.yesFilled), 0n);
-    assert.ok(marketAccount.noAmount.eq(initializeMarketParams.noAmount));
-    assert.strictEqual(intoU64(marketAccount.noFilled), 0n);
-    assert.ok(marketAccount.closeTs.eq(initializeMarketParams.closeTs));
-    assert.ok(marketAccount.expiryTs.eq(initializeMarketParams.expiryTs));
-    assert.strictEqual(intoU64(marketAccount.outcomeTs), 0n);
-    assert.strictEqual(
-      marketAccount.resolutionDelay,
+    expect(marketAccount.creator).toEqualPubkey(provider.wallet.publicKey);
+    expect(marketAccount.resolver).toEqualPubkey(resolver.publicKey);
+    expect(marketAccount.tokenMint).toEqualPubkey(mint.publicKey);
+    expect(marketAccount.yesTokenAccount).toEqualPubkey(yesTokenAccount);
+    expect(marketAccount.noTokenAccount).toEqualPubkey(noTokenAccount);
+    expect(
+      marketAccount.yesAmount.eq(initializeMarketParams.yesAmount)
+    ).toBeTruthy();
+    expect(intoU64(marketAccount.yesFilled)).toBe(0n);
+    expect(
+      marketAccount.noAmount.eq(initializeMarketParams.noAmount)
+    ).toBeTruthy();
+    expect(intoU64(marketAccount.noFilled)).toBe(0n);
+    expect(
+      marketAccount.closeTs.eq(initializeMarketParams.closeTs)
+    ).toBeTruthy();
+    expect(
+      marketAccount.expiryTs.eq(initializeMarketParams.expiryTs)
+    ).toBeTruthy();
+    expect(intoU64(marketAccount.outcomeTs)).toBe(0n);
+    expect(marketAccount.resolutionDelay).toBe(
       initializeMarketParams.resolutionDelay
     );
-    assert.deepStrictEqual(marketAccount.outcome, { Open: {} });
-    assert.strictEqual(marketAccount.finalized, false);
-    assert.strictEqual(marketAccount.yesAccountBump, yesNonce);
-    assert.strictEqual(marketAccount.noAccountBump, noNonce);
-    assert.strictEqual(
-      interpretMarketResource(marketAccount.uri),
+    expect(marketAccount.outcome).toStrictEqual({ Open: {} });
+    expect(marketAccount.finalized).toBe(false);
+    expect(marketAccount.yesAccountBump).toBe(yesNonce);
+    expect(marketAccount.noAccountBump).toBe(noNonce);
+    expect(interpretMarketResource(marketAccount.uri)).toBe(
       initializeMarketParams.uri
     );
   });
 
   it('fails to initialize a market if the authority is incorrect', async () => {
-    await assert.rejects(
-      async () => {
-        await program.methods
-          .initializeMarket(initializeMarketParams)
-          .accounts({
-            market: market.publicKey,
-            tokenMint: mint.publicKey,
-            authority: Keypair.generate().publicKey,
-            yesTokenAccount,
-            noTokenAccount,
-          })
-          .signers([market])
-          .rpc();
-      },
-      (err: any) => {
-        assert.strictEqual(
-          err.error.errorCode.number,
-          LangErrorCode.ConstraintSeeds
-        );
-        return true;
-      }
-    );
+    expect.assertions(1);
+
+    try {
+      await program.methods
+        .initializeMarket(initializeMarketParams)
+        .accounts({
+          market: market.publicKey,
+          tokenMint: mint.publicKey,
+          authority: Keypair.generate().publicKey,
+          yesTokenAccount,
+          noTokenAccount,
+        })
+        .signers([market])
+        .rpc();
+    } catch (e: any) {
+      expect(e.error.errorCode.number).toBe(LangErrorCode.ConstraintSeeds);
+    }
   });
 
   it('fails to initialize a market if the yes token account is incorrect', async () => {
+    expect.assertions(1);
+
     const [wrongYesTokenAccount] = findProgramAddressSync(
       [Buffer.from('fake')],
       program.programId
     );
-    await assert.rejects(async () => {
+
+    try {
       await program.methods
         .initializeMarket(initializeMarketParams)
         .accounts({
@@ -149,15 +161,20 @@ describe('hh-escrow', () => {
         })
         .signers([market])
         .rpc();
-    });
+    } catch (e) {
+      expect(e).toBeInstanceOf(SendTransactionError);
+    }
   });
 
   it('fails to initialize a market if the no token account is incorrect', async () => {
+    expect.assertions(1);
+
     const [wrongNoTokenAccount] = findProgramAddressSync(
       [Buffer.from('fake')],
       program.programId
     );
-    await assert.rejects(async () => {
+
+    try {
       await program.methods
         .initializeMarket(initializeMarketParams)
         .accounts({
@@ -169,84 +186,77 @@ describe('hh-escrow', () => {
         })
         .signers([market])
         .rpc();
-    });
+    } catch (e) {
+      expect(e).toBeInstanceOf(SendTransactionError);
+    }
   });
 
   it('fails to initialize a market if the URI is too long', async () => {
+    expect.assertions(1);
+
     const newMarketParams = {
       ...initializeMarketParams,
       uri: '0'.repeat(257),
     };
-    await assert.rejects(
-      async () => {
-        await program.methods
-          .initializeMarket(newMarketParams)
-          .accounts({
-            market: market.publicKey,
-            tokenMint: mint.publicKey,
-            authority,
-            yesTokenAccount,
-            noTokenAccount: noTokenAccount,
-          })
-          .signers([market])
-          .rpc();
-      },
-      (err: ProgramError) => {
-        assert.strictEqual(err.code, ErrorCode.InvalidMarketResource);
-        return true;
-      }
-    );
+
+    await expect(
+      program.methods
+        .initializeMarket(newMarketParams)
+        .accounts({
+          market: market.publicKey,
+          tokenMint: mint.publicKey,
+          authority,
+          yesTokenAccount,
+          noTokenAccount: noTokenAccount,
+        })
+        .signers([market])
+        .rpc()
+    ).rejects.toThrowProgramError(ErrorCode.InvalidMarketResource);
   });
 
   it('fails to initialize a market if the close timestamp is before the current time', async () => {
+    expect.assertions(1);
+
     const newMarketParams = {
       ...initializeMarketParams,
       closeTs: intoU64BN(0),
     };
-    await assert.rejects(
-      async () => {
-        await program.methods
-          .initializeMarket(newMarketParams)
-          .accounts({
-            market: market.publicKey,
-            tokenMint: mint.publicKey,
-            authority,
-            yesTokenAccount,
-            noTokenAccount: noTokenAccount,
-          })
-          .signers([market])
-          .rpc();
-      },
-      (err: ProgramError) => {
-        assert.strictEqual(err.code, ErrorCode.InvalidCloseTimestamp);
-        return true;
-      }
-    );
+
+    await expect(
+      program.methods
+        .initializeMarket(newMarketParams)
+        .accounts({
+          market: market.publicKey,
+          tokenMint: mint.publicKey,
+          authority,
+          yesTokenAccount,
+          noTokenAccount: noTokenAccount,
+        })
+        .signers([market])
+        .rpc()
+    ).rejects.toThrowProgramError(ErrorCode.InvalidCloseTimestamp);
   });
 
   it('fails to initialize a market if the expiry timestamp is before the close timestamp', async () => {
+    expect.assertions(1);
+
     const newMarketParams = {
       ...initializeMarketParams,
       expiryTs: intoU64BN(0),
     };
-    await assert.rejects(
-      async () => {
-        await program.methods
-          .initializeMarket(newMarketParams)
-          .accounts({
-            market: market.publicKey,
-            tokenMint: mint.publicKey,
-            authority,
-            yesTokenAccount,
-            noTokenAccount: noTokenAccount,
-          })
-          .signers([market])
-          .rpc();
-      },
-      (err: ProgramError) => {
-        assert.strictEqual(err.code, ErrorCode.InvalidExpiryTimestamp);
-        return true;
-      }
-    );
+
+    await expect(
+      program.methods
+        .initializeMarket(newMarketParams)
+        .accounts({
+          market: market.publicKey,
+          tokenMint: mint.publicKey,
+          authority,
+          yesTokenAccount,
+          noTokenAccount: noTokenAccount,
+        })
+        .signers([market])
+        .rpc()
+    ).rejects.toThrowProgramError(ErrorCode.InvalidExpiryTimestamp);
   });
 });
