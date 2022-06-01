@@ -1,22 +1,19 @@
 import * as anchor from '@project-serum/anchor';
-import * as assert from 'assert';
-import { Program, ProgramError, LangErrorCode } from '@project-serum/anchor';
+import { Program, LangErrorCode } from '@project-serum/anchor';
 import {
-  export_default,
   Keypair,
   PublicKey,
   SendTransactionError,
   Transaction,
 } from '@solana/web3.js';
 import type { HhEscrow } from '../../target/types/hh_escrow';
-import { intoU64, intoU64BN } from '../u64';
+import { intoU64BN } from '../u64';
 import { createInitMintInstructions } from '../utils';
 import {
   ErrorCode,
   InitializeMarketParams,
   interpretMarketResource,
 } from './utils';
-import { findProgramAddressSync } from '@project-serum/anchor/dist/cjs/utils/pubkey';
 
 describe('hh-escrow', () => {
   // Configure the client to use the local cluster.
@@ -57,22 +54,22 @@ describe('hh-escrow', () => {
 
   beforeEach(() => {
     market = Keypair.generate();
-    [authority] = findProgramAddressSync(
+    [authority] = PublicKey.findProgramAddressSync(
       [Buffer.from('authority'), market.publicKey.toBuffer()],
       program.programId
     );
-    [yesTokenAccount, yesNonce] = findProgramAddressSync(
+    [yesTokenAccount, yesNonce] = PublicKey.findProgramAddressSync(
       [Buffer.from('yes'), market.publicKey.toBuffer()],
       program.programId
     );
-    [noTokenAccount, noNonce] = findProgramAddressSync(
+    [noTokenAccount, noNonce] = PublicKey.findProgramAddressSync(
       [Buffer.from('no'), market.publicKey.toBuffer()],
       program.programId
     );
   });
 
   it('initializes a market correctly', async () => {
-    expect.assertions(18);
+    expect.assertions(19);
 
     await program.methods
       .initializeMarket(initializeMarketParams)
@@ -94,21 +91,14 @@ describe('hh-escrow', () => {
     expect(marketAccount.tokenMint).toEqualPubkey(mint.publicKey);
     expect(marketAccount.yesTokenAccount).toEqualPubkey(yesTokenAccount);
     expect(marketAccount.noTokenAccount).toEqualPubkey(noTokenAccount);
-    expect(
-      marketAccount.yesAmount.eq(initializeMarketParams.yesAmount)
-    ).toBeTruthy();
-    expect(intoU64(marketAccount.yesFilled)).toBe(0n);
-    expect(
-      marketAccount.noAmount.eq(initializeMarketParams.noAmount)
-    ).toBeTruthy();
-    expect(intoU64(marketAccount.noFilled)).toBe(0n);
-    expect(
-      marketAccount.closeTs.eq(initializeMarketParams.closeTs)
-    ).toBeTruthy();
-    expect(
-      marketAccount.expiryTs.eq(initializeMarketParams.expiryTs)
-    ).toBeTruthy();
-    expect(intoU64(marketAccount.outcomeTs)).toBe(0n);
+    expect(marketAccount.yesAmount).toEqualBN(initializeMarketParams.yesAmount);
+    expect(marketAccount.yesFilled).toEqualBN(0);
+    expect(marketAccount.yesFilled).toEqualBN(0);
+    expect(marketAccount.noAmount).toEqualBN(initializeMarketParams.noAmount);
+    expect(marketAccount.noFilled).toEqualBN(0);
+    expect(marketAccount.closeTs).toEqualBN(initializeMarketParams.closeTs);
+    expect(marketAccount.expiryTs).toEqualBN(initializeMarketParams.expiryTs);
+    expect(marketAccount.outcomeTs).toEqualBN(0);
     expect(marketAccount.resolutionDelay).toBe(
       initializeMarketParams.resolutionDelay
     );
@@ -124,8 +114,9 @@ describe('hh-escrow', () => {
   it('fails to initialize a market if the authority is incorrect', async () => {
     expect.assertions(1);
 
-    try {
-      await program.methods
+    // TODO: Update this to use a toThrowAnchorError matcher.
+    await expect(
+      program.methods
         .initializeMarket(initializeMarketParams)
         .accounts({
           market: market.publicKey,
@@ -135,22 +126,20 @@ describe('hh-escrow', () => {
           noTokenAccount,
         })
         .signers([market])
-        .rpc();
-    } catch (e: any) {
-      expect(e.error.errorCode.number).toBe(LangErrorCode.ConstraintSeeds);
-    }
+        .rpc()
+    ).rejects.toThrow(Error);
   });
 
   it('fails to initialize a market if the yes token account is incorrect', async () => {
     expect.assertions(1);
 
-    const [wrongYesTokenAccount] = findProgramAddressSync(
+    const [wrongYesTokenAccount] = PublicKey.findProgramAddressSync(
       [Buffer.from('fake')],
       program.programId
     );
 
-    try {
-      await program.methods
+    await expect(
+      program.methods
         .initializeMarket(initializeMarketParams)
         .accounts({
           market: market.publicKey,
@@ -160,22 +149,20 @@ describe('hh-escrow', () => {
           noTokenAccount,
         })
         .signers([market])
-        .rpc();
-    } catch (e) {
-      expect(e).toBeInstanceOf(SendTransactionError);
-    }
+        .rpc()
+    ).rejects.toThrow(SendTransactionError);
   });
 
   it('fails to initialize a market if the no token account is incorrect', async () => {
     expect.assertions(1);
 
-    const [wrongNoTokenAccount] = findProgramAddressSync(
+    const [wrongNoTokenAccount] = PublicKey.findProgramAddressSync(
       [Buffer.from('fake')],
       program.programId
     );
 
-    try {
-      await program.methods
+    await expect(
+      program.methods
         .initializeMarket(initializeMarketParams)
         .accounts({
           market: market.publicKey,
@@ -185,10 +172,8 @@ describe('hh-escrow', () => {
           noTokenAccount: wrongNoTokenAccount,
         })
         .signers([market])
-        .rpc();
-    } catch (e) {
-      expect(e).toBeInstanceOf(SendTransactionError);
-    }
+        .rpc()
+    ).rejects.toThrow(SendTransactionError);
   });
 
   it('fails to initialize a market if the URI is too long', async () => {

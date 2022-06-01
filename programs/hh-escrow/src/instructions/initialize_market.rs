@@ -120,11 +120,11 @@ pub fn handler(ctx: Context<InitializeMarket>, params: InitializeMarketParams) -
     market.yes_account_bump = *ctx
         .bumps
         .get("yes_token_account")
-        .ok_or(error!(ErrorCode::NonCanonicalBumpSeed))?;
+        .ok_or_else(|| error!(ErrorCode::NonCanonicalBumpSeed))?;
     market.no_account_bump = *ctx
         .bumps
         .get("no_token_account")
-        .ok_or(error!(ErrorCode::NonCanonicalBumpSeed))?;
+        .ok_or_else(|| error!(ErrorCode::NonCanonicalBumpSeed))?;
 
     Ok(())
 }

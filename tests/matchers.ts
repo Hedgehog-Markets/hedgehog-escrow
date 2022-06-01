@@ -3,6 +3,8 @@ import { isError } from '@jest/expect-utils';
 import { formatStackTrace, separateMessageFromStack } from 'jest-message-util';
 import { isPrimitive } from 'jest-get-type';
 import { ProgramError } from '@project-serum/anchor';
+import { IntoBigInt, intoBN } from './utils';
+import { BN, isBN } from 'bn.js';
 
 type Constructor = new (...args: never) => unknown;
 
@@ -35,6 +37,40 @@ expect.extend({
           `\n\nExpected: ${this.utils.EXPECTED_COLOR(
             expected.toBase58()
           )}\nReceived: ${this.utils.RECEIVED_COLOR(received.toBase58())}`;
+
+    return { pass, message };
+  },
+
+  toEqualBN(received: unknown, expected: IntoBigInt) {
+    const matcherName = 'toEqualBN';
+    const options = {
+      isNot: this.isNot,
+      promise: this.promise,
+    };
+
+    expected = intoBN(expected);
+
+    if (!isBN(received)) {
+      return {
+        pass: false,
+        message: () =>
+          this.utils.matcherHint(matcherName, undefined, undefined, options) +
+          '\n\n' +
+          printExpectedConstructorName(this, BN) +
+          printReceivedInfo(this, received),
+      };
+    }
+
+    const pass = expected.eq(received);
+    const message = pass
+      ? () =>
+          this.utils.matcherHint(matcherName, undefined, undefined, options) +
+          `\n\nExpected: ${this.utils.EXPECTED_COLOR(expected)}`
+      : () =>
+          this.utils.matcherHint(matcherName, undefined, undefined, options) +
+          `\n\nExpected: ${this.utils.EXPECTED_COLOR(
+            expected
+          )}\nReceived: ${this.utils.RECEIVED_COLOR(received)}`;
 
     return { pass, message };
   },

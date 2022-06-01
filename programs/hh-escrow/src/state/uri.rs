@@ -27,7 +27,7 @@ impl UriResource {
     pub fn validate(uri: &str) -> Result<UriResource> {
         let len = uri.len();
         if len > URI_MAX_LEN {
-            return Err(ErrorCode::InvalidMarketResource.into());
+            return Err(error!(ErrorCode::InvalidMarketResource));
         }
 
         let mut bytes = [0; URI_MAX_LEN];
