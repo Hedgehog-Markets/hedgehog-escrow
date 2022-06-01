@@ -6,7 +6,6 @@ import type {
   PublicKey,
   TransactionInstruction,
 } from '@solana/web3.js';
-
 import { SystemProgram } from '@solana/web3.js';
 import {
   MINT_SIZE,
@@ -14,7 +13,9 @@ import {
   createInitializeMintInstruction,
   TOKEN_PROGRAM_ID,
 } from '@solana/spl-token';
-import type { IdlErrorCode } from '@project-serum/anchor/dist/cjs/idl';
+import type { Idl } from '@project-serum/anchor';
+
+type IdlErrorCode = NonNullable<Idl['errors']>[number];
 
 type CreateInitMintParams = {
   mint: PublicKey;

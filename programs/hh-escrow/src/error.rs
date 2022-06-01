@@ -10,4 +10,8 @@ pub enum ErrorCode {
     InvalidExpiryTimestamp,
     #[msg("Bump seed was non canonical.")]
     NonCanonicalBumpSeed,
+    #[msg("Numerical overflow occurred.")]
+    Overflow,
+    #[msg("This market is already finalized.")]
+    AlreadyFinalized,
 }
