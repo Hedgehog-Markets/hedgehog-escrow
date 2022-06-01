@@ -1,6 +1,6 @@
 import * as anchor from '@project-serum/anchor';
 import { Program, LangErrorCode } from '@project-serum/anchor';
-import { Keypair, Transaction } from '@solana/web3.js';
+import { Keypair, PublicKey, Transaction } from '@solana/web3.js';
 import type { HhEscrow } from '../../target/types/hh_escrow';
 import { intoU64BN } from '../u64';
 import {
@@ -8,7 +8,6 @@ import {
   createInitMintInstructions,
 } from '../utils';
 import { DepositParams, ErrorCode, InitializeMarketParams } from './utils';
-import { findProgramAddressSync } from '@project-serum/anchor/dist/cjs/utils/pubkey';
 
 // NOTE: Tests in this block have a dependency order.
 describe('hh-escrow deposit tests', () => {
@@ -46,19 +45,19 @@ describe('hh-escrow deposit tests', () => {
   const market = Keypair.generate();
   const user = Keypair.generate();
   const userTokenAccount = Keypair.generate();
-  const [authority] = findProgramAddressSync(
+  const [authority] = PublicKey.findProgramAddressSync(
     [Buffer.from('authority'), market.publicKey.toBuffer()],
     program.programId
   );
-  const [yesTokenAccount, yesNonce] = findProgramAddressSync(
+  const [yesTokenAccount] = PublicKey.findProgramAddressSync(
     [Buffer.from('yes'), market.publicKey.toBuffer()],
     program.programId
   );
-  const [noTokenAccount, noNonce] = findProgramAddressSync(
+  const [noTokenAccount] = PublicKey.findProgramAddressSync(
     [Buffer.from('no'), market.publicKey.toBuffer()],
     program.programId
   );
-  const [userPosition] = findProgramAddressSync(
+  const [userPosition] = PublicKey.findProgramAddressSync(
     [
       Buffer.from('user'),
       user.publicKey.toBuffer(),
@@ -88,16 +87,6 @@ describe('hh-escrow deposit tests', () => {
     );
 
     const ix = await program.methods
-      .initializeUserPosition()
-      .accounts({
-        user: user.publicKey,
-        payer: provider.wallet.publicKey,
-        market: market.publicKey,
-        userPosition,
-      })
-      .instruction();
-
-    await program.methods
       .initializeMarket(initializeMarketParams)
       .accounts({
         market: market.publicKey,
@@ -106,8 +95,18 @@ describe('hh-escrow deposit tests', () => {
         yesTokenAccount,
         noTokenAccount,
       })
+      .instruction();
+
+    await program.methods
+      .initializeUserPosition()
+      .accounts({
+        user: user.publicKey,
+        payer: provider.wallet.publicKey,
+        market: market.publicKey,
+        userPosition,
+      })
       .signers([market, user])
-      .postInstructions([ix])
+      .preInstructions([ix])
       .rpc();
   });
 
@@ -117,9 +116,10 @@ describe('hh-escrow deposit tests', () => {
     );
 
     // Top off the user's token account before each test.
-    if (parseInt(value.amount) < 5_000_000) {
+    const topOff = 5_000_000n - BigInt(value.amount);
+    if (topOff > 0n) {
       await spl.methods
-        .mintTo(intoU64BN(5_000_000 - parseInt(value.amount)))
+        .mintTo(intoU64BN(topOff))
         .accounts({
           mint: mint.publicKey,
           authority: provider.wallet.publicKey,
@@ -199,7 +199,7 @@ describe('hh-escrow deposit tests', () => {
     expect.assertions(1);
 
     const otherUser = Keypair.generate();
-    const [otherUserPosition] = findProgramAddressSync(
+    const [otherUserPosition] = PublicKey.findProgramAddressSync(
       [
         Buffer.from('user'),
         otherUser.publicKey.toBuffer(),
@@ -304,14 +304,10 @@ describe('hh-escrow deposit tests', () => {
     );
     const marketAccount = await program.account.market.fetch(market.publicKey);
 
-    expect(
-      userPositionAccount.yesAmount.eq(intoU64BN(YES_AMOUNT / 2))
-    ).toBeTruthy();
-    expect(
-      userPositionAccount.noAmount.eq(intoU64BN(NO_AMOUNT / 2))
-    ).toBeTruthy();
-    expect(marketAccount.yesFilled.eq(intoU64BN(YES_AMOUNT / 2))).toBeTruthy();
-    expect(marketAccount.noFilled.eq(intoU64BN(NO_AMOUNT / 2))).toBeTruthy();
+    expect(userPositionAccount.yesAmount).toEqualBN(YES_AMOUNT / 2);
+    expect(userPositionAccount.noAmount).toEqualBN(NO_AMOUNT / 2);
+    expect(marketAccount.yesFilled).toEqualBN(YES_AMOUNT / 2);
+    expect(marketAccount.noFilled).toEqualBN(NO_AMOUNT / 2);
   });
 
   it('successfully fills if the amount to deposit exceeds the market amount, and allow_partial is true', async () => {
@@ -341,11 +337,9 @@ describe('hh-escrow deposit tests', () => {
     );
     const marketAccount = await program.account.market.fetch(market.publicKey);
 
-    expect(
-      userPositionAccount.yesAmount.eq(intoU64BN(YES_AMOUNT))
-    ).toBeTruthy();
-    expect(userPositionAccount.noAmount.eq(intoU64BN(NO_AMOUNT))).toBeTruthy();
-    expect(marketAccount.yesFilled.eq(intoU64BN(YES_AMOUNT))).toBeTruthy();
-    expect(marketAccount.noFilled.eq(intoU64BN(NO_AMOUNT))).toBeTruthy();
+    expect(userPositionAccount.yesAmount).toEqualBN(YES_AMOUNT);
+    expect(userPositionAccount.noAmount).toEqualBN(NO_AMOUNT);
+    expect(marketAccount.yesFilled).toEqualBN(YES_AMOUNT);
+    expect(marketAccount.noFilled).toEqualBN(NO_AMOUNT);
   });
 });

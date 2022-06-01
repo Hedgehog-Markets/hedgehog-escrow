@@ -68,7 +68,7 @@ impl Deposit<'_> {
             .market
             .yes_amount
             .checked_sub(self.market.yes_filled)
-            .ok_or(error!(ErrorCode::Overflow))?;
+            .ok_or_else(|| error!(ErrorCode::Overflow))?;
         if yes_left < yes_amount && !allow_partial {
             return Err(error!(ErrorCode::OverAllowedAmount));
         }
@@ -77,15 +77,12 @@ impl Deposit<'_> {
             .market
             .no_amount
             .checked_sub(self.market.no_filled)
-            .ok_or(error!(ErrorCode::Overflow))?;
+            .ok_or_else(|| error!(ErrorCode::Overflow))?;
         if no_left < no_amount && !allow_partial {
             return Err(error!(ErrorCode::OverAllowedAmount));
         }
 
-        Ok((
-            std::cmp::min(yes_left, yes_amount),
-            std::cmp::min(no_left, no_amount),
-        ))
+        Ok((yes_left.min(yes_amount), no_left.min(no_amount)))
     }
 }
 
