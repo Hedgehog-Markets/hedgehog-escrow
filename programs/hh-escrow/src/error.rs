@@ -22,4 +22,8 @@ pub enum ErrorCode {
     IncorrectYesEscrow,
     #[msg("Token account does not match the market no token account.")]
     IncorrectNoEscrow,
+    #[msg("Resolver does not match the market resolver.")]
+    IncorrectResolver,
+    #[msg("This status transition is not allowed.")]
+    InvalidTransition,
 }

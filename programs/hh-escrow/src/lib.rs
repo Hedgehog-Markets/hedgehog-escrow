@@ -28,6 +28,10 @@ pub mod hh_escrow {
     pub fn deposit(ctx: Context<Deposit>, params: DepositParams) -> ProgramResult {
         instructions::deposit::handler(ctx, params)
     }
+
+    pub fn update_state(ctx: Context<UpdateState>, params: UpdateStateParams) -> ProgramResult {
+        instructions::update_state::handler(ctx, params)
+    }
 }
 
 #[derive(Accounts)]

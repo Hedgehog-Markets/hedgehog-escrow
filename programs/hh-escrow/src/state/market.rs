@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 
-use crate::state::{Outcome, UriResource};
 use crate::error::ErrorCode;
+use crate::state::{Outcome, UriResource};
 
 /// 30 days max delay before a result is set.
 pub const MAX_DELAY_SEC: u32 = 86_400 * 30;
@@ -100,7 +100,7 @@ impl Market {
     }
 
     /// Same as `is_and_set_finalize`, but errors if the market is finalized.
-    /// 
+    ///
     /// Note that this is slightly inefficient, as this will cause the
     /// transaction to fail and revert writes that occur from
     /// `is_and_set_finalize`. However, this should be called at the beginning
@@ -215,9 +215,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = market
-            .finalize((MAX_DELAY_SEC - 10).into())
-            .unwrap();
+        let result = market.finalize((MAX_DELAY_SEC - 10).into()).unwrap();
 
         assert_eq!(result, true);
         assert_eq!(market.finalized, true);
