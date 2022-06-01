@@ -1,11 +1,15 @@
 import * as anchor from '@project-serum/anchor';
 import type { Program } from '@project-serum/anchor';
-import { Keypair, SendTransactionError, Transaction } from '@solana/web3.js';
+import {
+  Keypair,
+  PublicKey,
+  SendTransactionError,
+  Transaction,
+} from '@solana/web3.js';
 import type { HhEscrow } from '../../target/types/hh_escrow';
-import { intoU64, intoU64BN } from '../u64';
+import { intoU64BN } from '../u64';
 import { createInitMintInstructions } from '../utils';
 import type { InitializeMarketParams } from './utils';
-import { findProgramAddressSync } from '@project-serum/anchor/dist/cjs/utils/pubkey';
 
 describe('initialize user position', () => {
   // Configure the client to use the local cluster.
@@ -27,15 +31,15 @@ describe('initialize user position', () => {
   };
   const mint = Keypair.generate();
   const market = Keypair.generate();
-  const [authority] = findProgramAddressSync(
+  const [authority] = PublicKey.findProgramAddressSync(
     [Buffer.from('authority'), market.publicKey.toBuffer()],
     program.programId
   );
-  const [yesTokenAccount, yesNonce] = findProgramAddressSync(
+  const [yesTokenAccount] = PublicKey.findProgramAddressSync(
     [Buffer.from('yes'), market.publicKey.toBuffer()],
     program.programId
   );
-  const [noTokenAccount, noNonce] = findProgramAddressSync(
+  const [noTokenAccount] = PublicKey.findProgramAddressSync(
     [Buffer.from('no'), market.publicKey.toBuffer()],
     program.programId
   );
@@ -67,7 +71,7 @@ describe('initialize user position', () => {
     expect.assertions(3);
 
     const user = Keypair.generate();
-    const [userPosition] = findProgramAddressSync(
+    const [userPosition] = PublicKey.findProgramAddressSync(
       [
         Buffer.from('user'),
         user.publicKey.toBuffer(),
@@ -91,15 +95,15 @@ describe('initialize user position', () => {
     );
 
     expect(userPositionAccount.market).toEqualPubkey(market.publicKey);
-    expect(intoU64(userPositionAccount.yesAmount)).toBe(0n);
-    expect(intoU64(userPositionAccount.noAmount)).toBe(0n);
+    expect(userPositionAccount.yesAmount).toEqualBN(0);
+    expect(userPositionAccount.noAmount).toEqualBN(0);
   });
 
   it('fails to initialize a user position if the seeds are incorrect', async () => {
     expect.assertions(1);
 
     const user = Keypair.generate();
-    const [userPosition] = findProgramAddressSync(
+    const [userPosition] = PublicKey.findProgramAddressSync(
       [
         Buffer.from('user'),
         market.publicKey.toBuffer(),
@@ -108,8 +112,8 @@ describe('initialize user position', () => {
       program.programId
     );
 
-    try {
-      await program.methods
+    await expect(
+      program.methods
         .initializeUserPosition()
         .accounts({
           user: user.publicKey,
@@ -118,9 +122,7 @@ describe('initialize user position', () => {
           userPosition,
         })
         .signers([user])
-        .rpc();
-    } catch (e) {
-      expect(e).toBeInstanceOf(SendTransactionError);
-    }
+        .rpc()
+    ).rejects.toThrow(SendTransactionError);
   });
 });
