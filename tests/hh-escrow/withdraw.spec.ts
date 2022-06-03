@@ -15,8 +15,6 @@ import {
 } from '../utils';
 import { ErrorCode, InitializeMarketParams } from './utils';
 
-const MAX_WAIT_S = 8;
-
 describe('hh-escrow withdraw tests', () => {
   const YES_AMOUNT = 1_000_000;
   const NO_AMOUNT = 2_000_000;
@@ -158,6 +156,35 @@ describe('hh-escrow withdraw tests', () => {
         .signers([market, user])
         .rpc()
     ).rejects.toThrowAnchorError(ErrorCode.MarketNotInvalid);
+  });
+
+  it('fails to withdraw if the outcome is invalid but not finalized', async () => {
+    expect.assertions(1);
+    await program.methods
+      .updateState({ outcome: { Invalid: {} } })
+      .accounts({
+        market: market.publicKey,
+        resolver: resolver.publicKey,
+      })
+      .preInstructions([initializeIx, userPositionIx])
+      .signers([market, user, resolver])
+      .rpc();
+
+    await expect(
+      program.methods
+        .withdraw()
+        .accounts({
+          user: user.publicKey,
+          yesTokenAccount,
+          noTokenAccount,
+          userTokenAccount: userTokenAccount.publicKey,
+          authority,
+          market: market.publicKey,
+          userPosition,
+        })
+        .signers([user])
+        .rpc()
+    ).rejects.toThrowProgramError(ErrorCode.NotFinalized);
   });
 
   it('fails to withdraw if the yes token account is incorrect', async () => {

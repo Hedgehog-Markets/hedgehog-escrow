@@ -8,37 +8,50 @@ use crate::error::ErrorCode;
 use crate::state::{Market, Outcome, UserPosition};
 use crate::utils::signer_transfer;
 
+/// Allows the user to withdraw from a finalized, invalid Market.
 #[derive(Accounts)]
 pub struct Withdraw<'info> {
+    /// The user withdrawing funds.
     pub user: Signer<'info>,
+    /// The yes token account for the market.
+    /// 
     /// CHECK: We do not read any data from this account. The correctness of the
     /// account is checked by the constraint on the market account. Writes
     /// only occur via the token program, which performs necessary checks on
     /// sufficient balance and matching token mints.
     #[account(mut)]
     pub yes_token_account: UncheckedAccount<'info>,
+    /// The no token account for the market.
+    /// 
     /// CHECK: We do not read any data from this account. The correctness of the
     /// account is checked by the constraint on the market account. Writes
     /// only occur via the token program, which performs necessary checks on
     /// sufficient balance and matching token mints.
     #[account(mut)]
     pub no_token_account: UncheckedAccount<'info>,
+    /// The user's token account to withdraw to.
+    /// 
     /// CHECK: We do not read any data from this account. Writes only occur via
     /// the token program, which performs necessary checks on sufficient balance
     /// and matching token mints.
     #[account(mut)]
     pub user_token_account: UncheckedAccount<'info>,
+    /// The authority for the market token accounts.
+    /// 
     /// CHECK: We do not read/write any data from this account.
     #[account(seeds = [b"authority", market.key_ref().as_ref()], bump)]
     pub authority: AccountInfo<'info>,
+    /// The Market account.
     #[account(
         constraint = market.outcome == Outcome::Invalid @ ErrorCode::MarketNotInvalid,
         has_one = yes_token_account @ ErrorCode::IncorrectYesEscrow,
         has_one = no_token_account @ ErrorCode::IncorrectNoEscrow,
     )]
     pub market: Account<'info, Market>,
+    /// The user's [UserPosition] account for this market.
     #[account(mut, seeds = [b"user", user.key_ref().as_ref(), market.key_ref().as_ref()], bump)]
     pub user_position: Account<'info, UserPosition>,
+    /// The SPL Token Program.
     pub token_program: Program<'info, Token>,
 }
 
