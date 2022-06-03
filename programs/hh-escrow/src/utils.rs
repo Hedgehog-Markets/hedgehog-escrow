@@ -1,10 +1,10 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{self, Token, TokenAccount, Transfer};
+use anchor_spl::token::{self, Token, Transfer};
 
 pub fn non_signer_transfer<'info>(
     token_program: &Program<'info, Token>,
-    from: &Account<'info, TokenAccount>,
-    to: &Account<'info, TokenAccount>,
+    from: &AccountInfo<'info>,
+    to: &AccountInfo<'info>,
     authority: &AccountInfo<'info>,
     amount: u64,
 ) -> Result<()> {

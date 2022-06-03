@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Token, TokenAccount};
+use anchor_spl::token::Token;
 use solana_program::entrypoint::ProgramResult;
 
 use common::traits::KeyRef;
@@ -34,17 +34,31 @@ pub struct Deposit<'info> {
     )]
     pub market: Account<'info, Market>,
     /// Escrow for tokens on the yes side of the market.
+    /// 
+    /// CHECK: We do not read any data from this account. The correctness of the
+    /// account is checked by the constraint on the market account above. Writes
+    /// only occur via the token program, which performs necessary checks on
+    /// sufficient balance and matching token mints.
     #[account(mut)]
-    pub yes_token_account: Account<'info, TokenAccount>,
+    pub yes_token_account: UncheckedAccount<'info>,
     /// Escrow for tokens on the no side of the market.
+    /// 
+    /// CHECK: We do not read any data from this account. The correctness of the
+    /// account is checked by the constraint on the market account above. Writes
+    /// only occur via the token program, which performs necessary checks on
+    /// sufficient balance and matching token mints.
     #[account(mut)]
-    pub no_token_account: Account<'info, TokenAccount>,
+    pub no_token_account: UncheckedAccount<'info>,
     /// The user's token account.
+    /// 
+    /// CHECK: We do not read any data from this account. Writes only occur via
+    /// the token program, which performs necessary checks on sufficient balance
+    /// and matching token mints.
     #[account(mut)]
-    pub user_token_account: Account<'info, TokenAccount>,
+    pub user_token_account: UncheckedAccount<'info>,
     /// The [UserPosition] account for this user and market.
     #[account(mut, seeds = [b"user", user.key_ref().as_ref(), market.key_ref().as_ref()], bump)]
-    pub user_position: Box<Account<'info, UserPosition>>,
+    pub user_position: Account<'info, UserPosition>,
     /// The SPL token program.
     pub token_program: Program<'info, Token>,
 }
@@ -105,19 +119,19 @@ pub fn handler(ctx: Context<Deposit>, params: DepositParams) -> ProgramResult {
     user_position.yes_amount = user_position
         .yes_amount
         .checked_add(yes_to_deposit)
-        .ok_or(error!(ErrorCode::Overflow))?;
+        .ok_or_else(|| error!(ErrorCode::Overflow))?;
     user_position.no_amount = user_position
         .no_amount
         .checked_add(no_to_deposit)
-        .ok_or(error!(ErrorCode::Overflow))?;
+        .ok_or_else(|| error!(ErrorCode::Overflow))?;
     market.yes_filled = market
         .yes_filled
         .checked_add(yes_to_deposit)
-        .ok_or(error!(ErrorCode::Overflow))?;
+        .ok_or_else(|| error!(ErrorCode::Overflow))?;
     market.no_filled = market
         .no_filled
         .checked_add(no_to_deposit)
-        .ok_or(error!(ErrorCode::Overflow))?;
+        .ok_or_else(|| error!(ErrorCode::Overflow))?;
 
     // Perform the transfers.
     non_signer_transfer(
