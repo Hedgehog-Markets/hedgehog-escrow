@@ -127,7 +127,7 @@ describe('hh-escrow', () => {
         })
         .signers([market])
         .rpc()
-    ).rejects.toThrow(Error);
+    ).rejects.toThrowAnchorError(LangErrorCode.ConstraintSeeds);
   });
 
   it('fails to initialize a market if the yes token account is incorrect', async () => {

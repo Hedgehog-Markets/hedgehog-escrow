@@ -12,6 +12,9 @@ import {
   getMinimumBalanceForRentExemptMint,
   createInitializeMintInstruction,
   TOKEN_PROGRAM_ID,
+  createInitializeAccountInstruction,
+  getMinimumBalanceForRentExemptAccount,
+  ACCOUNT_SIZE,
 } from '@solana/spl-token';
 import type { Idl } from '@project-serum/anchor';
 
@@ -58,6 +61,37 @@ export async function createInitMintInstructions({
       freezeAuthority ?? null,
       TOKEN_PROGRAM_ID
     ),
+  ];
+}
+
+type CreateInitAccountParams = {
+  account: PublicKey;
+  mint: PublicKey;
+  user: PublicKey;
+  connection: Connection;
+  payer: PublicKey;
+};
+
+export async function createInitAccountInstructions({
+  account,
+  mint,
+  user,
+  connection,
+  payer,
+}: CreateInitAccountParams): Promise<
+  [TransactionInstruction, TransactionInstruction]
+> {
+  const lamports = await getMinimumBalanceForRentExemptAccount(connection);
+
+  return [
+    SystemProgram.createAccount({
+      fromPubkey: payer,
+      newAccountPubkey: account,
+      space: ACCOUNT_SIZE,
+      lamports,
+      programId: TOKEN_PROGRAM_ID,
+    }),
+    createInitializeAccountInstruction(account, mint, user, TOKEN_PROGRAM_ID),
   ];
 }
 

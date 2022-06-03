@@ -4,6 +4,7 @@ use solana_program::entrypoint::ProgramResult;
 pub mod error;
 pub mod instructions;
 pub mod state;
+pub mod utils;
 
 use crate::instructions::*;
 
@@ -22,6 +23,10 @@ pub mod hh_escrow {
 
     pub fn initialize_user_position(ctx: Context<InitializeUserPosition>) -> ProgramResult {
         instructions::initialize_user_position::handler(ctx)
+    }
+
+    pub fn deposit(ctx: Context<Deposit>, params: DepositParams) -> ProgramResult {
+        instructions::deposit::handler(ctx, params)
     }
 }
 

@@ -2,7 +2,7 @@ import { PublicKey } from '@solana/web3.js';
 import { isError } from '@jest/expect-utils';
 import { formatStackTrace, separateMessageFromStack } from 'jest-message-util';
 import { isPrimitive } from 'jest-get-type';
-import { ProgramError } from '@project-serum/anchor';
+import { AnchorError, ProgramError } from '@project-serum/anchor';
 import { IntoBigInt, intoBN } from './utils';
 import { BN, isBN } from 'bn.js';
 
@@ -43,6 +43,7 @@ expect.extend({
 
   toEqualBN(received: unknown, expected: IntoBigInt) {
     const matcherName = 'toEqualBN';
+
     const options = {
       isNot: this.isNot,
       promise: this.promise,
@@ -71,6 +72,90 @@ expect.extend({
           `\n\nExpected: ${this.utils.EXPECTED_COLOR(
             expected
           )}\nReceived: ${this.utils.RECEIVED_COLOR(received)}`;
+
+    return { pass, message };
+  },
+
+  // This runs through the same logic as ProgramError, with a slight pathing
+  // difference to locate the error code. We may want to consolidate the logic
+  // of these to matchers in the future.
+  toThrowAnchorError(received: unknown, code: number) {
+    const matcherName = 'toThrowAnchorError';
+    const options = {
+      isNot: this.isNot,
+      promise: this.promise,
+    };
+
+    let thrown: Thrown | null = null;
+
+    if (this.promise && isError(received)) {
+      thrown = getThrown(received);
+    } else if (typeof received !== 'function') {
+      throw new Error(
+        this.utils.matcherErrorMessage(
+          this.utils.matcherHint(matcherName, undefined, undefined, options),
+          `${this.utils.RECEIVED_COLOR('received')} value must be a function`,
+          this.utils.printWithType(
+            'Received',
+            received,
+            this.utils.printReceived
+          )
+        )
+      );
+    } else {
+      try {
+        received();
+      } catch (e) {
+        thrown = getThrown(e);
+      }
+    }
+
+    if (thrown === null || !(thrown.value instanceof AnchorError)) {
+      return {
+        pass: false,
+        message: () =>
+          this.utils.matcherHint(matcherName, undefined, undefined, options) +
+          '\n\n' +
+          printExpectedConstructorName(this, AnchorError) +
+          (thrown === null
+            ? '\nReceived function did not throw'
+            : `${
+                typeof thrown.value != null &&
+                typeof (thrown.value as { constructor?: unknown })
+                  .constructor === 'function'
+                  ? printReceivedConstructorName(
+                      this,
+                      (thrown.value as { constructor: Constructor }).constructor
+                    )
+                  : ''
+              }\n${
+                thrown.hasMessage
+                  ? `Received message: ${this.utils.printReceived(
+                      thrown.message
+                    )}` + formatStack(thrown)
+                  : `Received value: ${this.utils.printReceived(thrown.value)}`
+              }`),
+      };
+    }
+
+    const receivedCode = thrown.value.error.errorCode.number;
+
+    const pass = receivedCode === code;
+    const message = pass
+      ? () =>
+          this.utils.matcherHint(matcherName, undefined, undefined, options) +
+          '\n\n' +
+          `Expected error code to not be ${this.utils.printExpected(code)}`
+      : () =>
+          this.utils.matcherHint(matcherName, undefined, undefined, options) +
+          '\n\n' +
+          this.utils.printDiffOrStringify(
+            code,
+            receivedCode,
+            'Expected error code',
+            'Received error code',
+            this.expand !== false
+          );
 
     return { pass, message };
   },

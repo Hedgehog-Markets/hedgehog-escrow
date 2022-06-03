@@ -15,6 +15,10 @@ interface CustomMatchers<R = unknown> {
    * Checks that specific `ProgramError` is thrown inside a function.
    */
   toThrowProgramError(code: number): R;
+  /**
+   * Checks that specific `AnchorError` is thrown inside a function.
+   */
+  toThrowAnchorError(code: number): R;
 }
 
 declare global {

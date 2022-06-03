@@ -7,6 +7,7 @@ type EscrowTypes = IdlTypes<HhEscrow>;
 
 export type InitializeMarketParams = EscrowTypes['InitializeMarketParams'];
 export type UriResource = EscrowTypes['UriResource'];
+export type DepositParams = EscrowTypes['DepositParams'];
 export const program: Program<HhEscrow> =
   anchor.workspace.HhEscrow;
 

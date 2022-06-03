@@ -14,4 +14,12 @@ pub enum ErrorCode {
     Overflow,
     #[msg("This market is already finalized.")]
     AlreadyFinalized,
+    #[msg("This market is closed for trading.")]
+    MarketClosed,
+    #[msg("Attempted to add more than the allowed amount.")]
+    OverAllowedAmount,
+    #[msg("Token account does not match the market yes token account.")]
+    IncorrectYesEscrow,
+    #[msg("Token account does not match the market no token account.")]
+    IncorrectNoEscrow,
 }
