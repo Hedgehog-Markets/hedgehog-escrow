@@ -26,4 +26,8 @@ pub enum ErrorCode {
     IncorrectResolver,
     #[msg("This status transition is not allowed.")]
     InvalidTransition,
+    #[msg("Can only withdraw from an invalid market.")]
+    MarketNotInvalid,
+    #[msg("This market is not finalized.")]
+    NotFinalized,
 }

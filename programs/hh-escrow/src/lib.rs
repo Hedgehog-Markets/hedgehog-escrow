@@ -32,6 +32,10 @@ pub mod hh_escrow {
     pub fn update_state(ctx: Context<UpdateState>, params: UpdateStateParams) -> ProgramResult {
         instructions::update_state::handler(ctx, params)
     }
+
+    pub fn withdraw(ctx: Context<Withdraw>) -> ProgramResult {
+        instructions::withdraw::handler(ctx)
+    }
 }
 
 #[derive(Accounts)]

@@ -170,3 +170,5 @@ export function intoBN(n: IntoBigInt): BN {
       throw new IntoBigIntError(n);
   }
 }
+
+export const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
