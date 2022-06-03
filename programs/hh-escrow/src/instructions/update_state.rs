@@ -6,7 +6,7 @@ use crate::state::{Market, Outcome};
 
 #[derive(Clone, AnchorDeserialize, AnchorSerialize)]
 pub struct UpdateStateParams {
-    pub outcome: Outcome
+    pub outcome: Outcome,
 }
 
 #[derive(Accounts)]
@@ -23,7 +23,7 @@ impl UpdateState<'_> {
     ///   - Open => Invalid, Invalid => Open (latter resets outcome_ts to 0)
     /// - After the expiry ts:
     ///   - Cannot return to Open.
-    /// 
+    ///
     /// Finalization checks should occur before this check.
     pub fn can_update(&self, now: u64, outcome: Outcome) -> Result<()> {
         if *self.resolver.key != self.market.resolver {
@@ -35,11 +35,11 @@ impl UpdateState<'_> {
                 Outcome::Open => matches!(outcome, Outcome::Invalid),
                 Outcome::Yes => false,
                 Outcome::No => false,
-                Outcome::Invalid => matches!(outcome, Outcome::Open)
+                Outcome::Invalid => matches!(outcome, Outcome::Open),
             };
 
             if legal_transition {
-                return Ok(())
+                return Ok(());
             }
 
             return Err(error!(ErrorCode::InvalidTransition));
@@ -61,7 +61,7 @@ pub fn handler(ctx: Context<UpdateState>, params: UpdateStateParams) -> ProgramR
     // If auto-finalize is true, we can exit early. Note that anyone can trigger
     // an auto-finalize, even if they are not the marked resolver.
     if is_finalized {
-        return Ok(())
+        return Ok(());
     }
 
     // If not finalized, we can set updates if we are past the expiry timestamp.
