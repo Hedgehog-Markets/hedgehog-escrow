@@ -255,4 +255,95 @@ describe('hh-escrow withdraw tests', () => {
         .rpc()
     ).rejects.toThrowAnchorError(LangErrorCode.ConstraintSeeds);
   });
+
+  it('withdraws tokens for a user', async () => {
+    expect.assertions(12);
+
+    const initializeMarketParams = {
+      ...defaultMarketParams,
+      // Instant finalize.
+      resolutionDelay: 0,
+    };
+    initializeIx = await program.methods
+      .initializeMarket(initializeMarketParams)
+      .accounts({
+        market: market.publicKey,
+        tokenMint: mint.publicKey,
+        authority,
+        yesTokenAccount,
+        noTokenAccount,
+      })
+      .instruction();
+    await program.methods
+      .deposit({
+        yesAmount: intoU64BN(1),
+        noAmount: intoU64BN(2),
+        allowPartial: true,
+      })
+      .accounts({
+        user: user.publicKey,
+        market: market.publicKey,
+        yesTokenAccount,
+        noTokenAccount,
+        userTokenAccount: userTokenAccount.publicKey,
+        userPosition,
+      })
+      .preInstructions([initializeIx, userPositionIx])
+      .signers([market, user])
+      .rpc();
+
+    let yesAcc = await provider.connection.getTokenAccountBalance(
+      yesTokenAccount
+    );
+    let noAcc = await provider.connection.getTokenAccountBalance(
+      noTokenAccount
+    );
+    let userAcc = await provider.connection.getTokenAccountBalance(
+      userTokenAccount.publicKey
+    );
+    let userPositionAccount = await program.account.userPosition.fetch(
+      userPosition
+    );
+
+    expect(yesAcc.value.amount).toBe('1');
+    expect(noAcc.value.amount).toBe('2');
+    expect(userAcc.value.amount).toBe('4999997');
+    expect(userPositionAccount.yesAmount).toEqualBN(1);
+    expect(userPositionAccount.noAmount).toEqualBN(2);
+
+    await program.methods
+      .updateState({ outcome: { Invalid: {} } })
+      .accounts({
+        market: market.publicKey,
+        resolver: resolver.publicKey,
+      })
+      .signers([resolver])
+      .rpc();
+
+    let marketAccount = await program.account.market.fetch(market.publicKey);
+    expect(marketAccount.finalized).toBeFalsy();
+
+    await program.methods
+      .withdraw()
+      .accounts({
+        user: user.publicKey,
+        yesTokenAccount,
+        noTokenAccount,
+        userTokenAccount: userTokenAccount.publicKey,
+        authority: authority,
+        market: market.publicKey,
+        userPosition,
+      })
+      .signers([user])
+      .rpc();
+
+    marketAccount = await program.account.market.fetch(market.publicKey);
+
+    expect(yesAcc.value.amount).toBe('1');
+    expect(noAcc.value.amount).toBe('2');
+    expect(userAcc.value.amount).toBe('4999997');
+    expect(userPositionAccount.yesAmount).toEqualBN(1);
+    expect(userPositionAccount.noAmount).toEqualBN(2);
+    expect(marketAccount.finalized).toBeTruthy();
+  });
 });

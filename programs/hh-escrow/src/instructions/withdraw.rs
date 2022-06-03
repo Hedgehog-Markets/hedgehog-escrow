@@ -9,6 +9,9 @@ use crate::state::{Market, Outcome, UserPosition};
 use crate::utils::signer_transfer;
 
 /// Allows the user to withdraw from a finalized, invalid Market.
+/// 
+/// If the market can be auto-finalized, this instruction can do so without a
+/// call to [UpdateStatus].
 #[derive(Accounts)]
 pub struct Withdraw<'info> {
     /// The user withdrawing funds.
@@ -43,6 +46,7 @@ pub struct Withdraw<'info> {
     pub authority: AccountInfo<'info>,
     /// The Market account.
     #[account(
+        mut,
         constraint = market.outcome == Outcome::Invalid @ ErrorCode::MarketNotInvalid,
         has_one = yes_token_account @ ErrorCode::IncorrectYesEscrow,
         has_one = no_token_account @ ErrorCode::IncorrectNoEscrow,

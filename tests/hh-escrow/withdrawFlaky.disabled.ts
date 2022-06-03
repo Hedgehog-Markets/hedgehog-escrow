@@ -14,7 +14,6 @@ import { intoU64BN } from '../u64';
 import {
   createInitAccountInstructions,
   createInitMintInstructions,
-  delay,
 } from '../utils';
 import type { InitializeMarketParams } from './utils';
 
@@ -211,114 +210,5 @@ describe('hh-escrow withdraw tests', () => {
         .signers([user, otherUser, resolver])
         .rpc()
     ).rejects.toThrowAnchorError(LangErrorCode.ConstraintSeeds);
-  });
-
-  it('withdraws tokens for a user', async () => {
-    expect.assertions(10);
-
-    const epochInfo = await provider.connection.getEpochInfo();
-    const time = await provider.connection.getBlockTime(
-      epochInfo.absoluteSlot + 1
-    );
-
-    if (!time) throw Error('No block time found!');
-    const initializeParams = {
-      ...defaultMarketParams,
-      closeTs: intoU64BN(time + 1),
-      expiryTs: intoU64BN(time + 3600),
-    };
-    initializeIx = await program.methods
-      .initializeMarket(initializeParams)
-      .accounts({
-        market: market.publicKey,
-        tokenMint: mint.publicKey,
-        authority,
-        yesTokenAccount,
-        noTokenAccount,
-      })
-      .instruction();
-    await program.methods
-      .deposit({
-        yesAmount: intoU64BN(1),
-        noAmount: intoU64BN(2),
-        allowPartial: true,
-      })
-      .accounts({
-        user: user.publicKey,
-        market: market.publicKey,
-        yesTokenAccount,
-        noTokenAccount,
-        userTokenAccount: userTokenAccount.publicKey,
-        userPosition,
-      })
-      .preInstructions([initializeIx, userPositionIx])
-      .signers([market, user])
-      .rpc();
-
-    let yesAcc = await provider.connection.getTokenAccountBalance(
-      yesTokenAccount
-    );
-    let noAcc = await provider.connection.getTokenAccountBalance(
-      noTokenAccount
-    );
-    let userAcc = await provider.connection.getTokenAccountBalance(
-      userTokenAccount.publicKey
-    );
-    let userPositionAccount = await program.account.userPosition.fetch(
-      userPosition
-    );
-
-    expect(yesAcc.value.amount).toBe('1');
-    expect(noAcc.value.amount).toBe('2');
-    expect(userAcc.value.amount).toBe('4999997');
-    expect(userPositionAccount.yesAmount).toEqualBN(1);
-    expect(userPositionAccount.noAmount).toEqualBN(2);
-
-    // Wait for the time to pass the closeTs. If too much real time passes and
-    // the time has not incremented on the validator, then  we error.
-    let flag = false;
-    for (let i = 0; i < MAX_WAIT_S; i++) {
-      await delay(1000);
-      const newEpochInfo = await provider.connection.getEpochInfo();
-      const newTime = await provider.connection.getBlockTime(
-        newEpochInfo.absoluteSlot + 1
-      );
-      if (newTime && newTime > time + 1) {
-        flag = true;
-        break;
-      }
-    }
-
-    if (!flag) throw new Error('Test timed out waiting for time increment!');
-
-    await program.methods
-      .withdraw()
-      .accounts({
-        user: user.publicKey,
-        yesTokenAccount,
-        noTokenAccount,
-        userTokenAccount: userTokenAccount.publicKey,
-        authority: authority,
-        market: market.publicKey,
-        userPosition,
-      })
-      .preInstructions([updateStateIx])
-      .signers([resolver, user])
-      .rpc();
-
-    yesAcc = await provider.connection.getTokenAccountBalance(yesTokenAccount);
-    noAcc = await provider.connection.getTokenAccountBalance(noTokenAccount);
-    userAcc = await provider.connection.getTokenAccountBalance(
-      userTokenAccount.publicKey
-    );
-    userPositionAccount = await program.account.userPosition.fetch(
-      userPosition
-    );
-
-    expect(yesAcc.value.amount).toBe('0');
-    expect(noAcc.value.amount).toBe('0');
-    expect(userAcc.value.amount).toBe('5000000');
-    expect(userPositionAccount.yesAmount).toEqualBN(0);
-    expect(userPositionAccount.noAmount).toEqualBN(0);
   });
 });
