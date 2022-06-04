@@ -30,4 +30,10 @@ pub enum ErrorCode {
     MarketNotInvalid,
     #[msg("This market is not finalized.")]
     NotFinalized,
+    #[msg("The provided fee is too high.")]
+    FeeTooHigh,
+    #[msg("The provided program data is incorrect.")]
+    InvalidProgramData,
+    #[msg("The provided program authority is incorrect.")]
+    InvalidProgramAuthority,
 }

@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+echo "deploying hh-escrow:"
+anchor deploy --program-name hh-escrow
