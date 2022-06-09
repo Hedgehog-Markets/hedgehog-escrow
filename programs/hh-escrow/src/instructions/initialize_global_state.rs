@@ -47,10 +47,10 @@ pub fn handler(
     params: InitializeGlobalStateParams,
 ) -> ProgramResult {
     let global_state = &mut ctx.accounts.global_state;
-
-    global_state.owner = ctx.accounts.global_state_owner.key();
+    
     global_state.fee_cut_bps =
         Bps::new(params.protocol_fee_bps).ok_or_else(|| error!(ErrorCode::FeeTooHigh))?;
+    global_state.owner = ctx.accounts.global_state_owner.key();
     global_state.fee_wallet = ctx.accounts.fee_wallet.key();
 
     Ok(())
