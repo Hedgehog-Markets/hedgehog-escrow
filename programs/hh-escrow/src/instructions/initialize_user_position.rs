@@ -27,12 +27,6 @@ pub struct InitializeUserPosition<'info> {
 }
 
 pub fn handler(ctx: Context<InitializeUserPosition>) -> ProgramResult {
-    {
-        let now = Clock::get()?.unix_timestamp as u64;
-        let market = &mut ctx.accounts.market;
-        market.set_and_check_finalize(now)?;
-    }
-
     let user_position = &mut ctx.accounts.user_position;
     user_position.market = ctx.accounts.market.key();
 
