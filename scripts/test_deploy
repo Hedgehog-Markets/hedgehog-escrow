@@ -1,3 +1,5 @@
 #!/usr/bin/env bash
+echo "airdropping 10000 SOL"
+solana airdrop 10000 FBFckyeUm6VQYtEEhqKAJRqBrnKDU3dgFTXbwpF4xVfU
 echo "deploying hh-escrow:"
 anchor deploy --program-name hh-escrow
