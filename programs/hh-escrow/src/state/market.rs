@@ -45,12 +45,14 @@ pub struct Market {
     pub yes_account_bump: u8,
     /// The bump seed for the no token account.
     pub no_account_bump: u8,
+    /// Whether the resolver has acknowledged this market.
+    pub acknowledged: bool,
     /// The URI to the market's info (i.e. title, description)
     pub uri: UriResource,
 }
 
 impl Market {
-    pub const LEN: usize = 5 * 32 + 7 * 8 + 4 + 1 + 1 + 2 * 1 + UriResource::LEN;
+    pub const LEN: usize = 5 * 32 + 7 * 8 + 4 + 1 + 1 + 2 * 1 + 1 + UriResource::LEN;
 
     /// Checks whether the market is finalized. If the `finalized` flag is not
     /// flipped, checks conditions that would cause the market to be finalized,
