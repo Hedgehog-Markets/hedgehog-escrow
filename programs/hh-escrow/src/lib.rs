@@ -8,7 +8,16 @@ pub mod utils;
 
 use crate::instructions::*;
 
-declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
+declare_id!("27yeAvyRBxkiYT2NqZBjJDe4PNRcCxyqVQ1yXBpj2Hjt");
+
+#[derive(Clone)]
+pub struct HhEscrow;
+
+impl Id for HhEscrow {
+    fn id() -> Pubkey {
+        ID
+    }
+}
 
 #[program]
 pub mod hh_escrow {
@@ -35,6 +44,10 @@ pub mod hh_escrow {
 
     pub fn withdraw(ctx: Context<Withdraw>) -> ProgramResult {
         instructions::withdraw::handler(ctx)
+    }
+    
+    pub fn initialize_global_state(ctx: Context<InitializeGlobalState>, params: InitializeGlobalStateParams) -> ProgramResult {
+        instructions::initialize_global_state::handler(ctx, params)
     }
 }
 
