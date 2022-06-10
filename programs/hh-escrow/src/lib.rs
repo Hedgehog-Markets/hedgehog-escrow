@@ -45,9 +45,19 @@ pub mod hh_escrow {
     pub fn withdraw(ctx: Context<Withdraw>) -> ProgramResult {
         instructions::withdraw::handler(ctx)
     }
-    
-    pub fn initialize_global_state(ctx: Context<InitializeGlobalState>, params: InitializeGlobalStateParams) -> ProgramResult {
+
+    pub fn initialize_global_state(
+        ctx: Context<InitializeGlobalState>,
+        params: InitializeGlobalStateParams,
+    ) -> ProgramResult {
         instructions::initialize_global_state::handler(ctx, params)
+    }
+
+    pub fn set_global_state(
+        ctx: Context<SetGlobalState>,
+        params: SetGlobalStateParams,
+    ) -> ProgramResult {
+        instructions::set_global_state::handler(ctx, params)
     }
 }
 

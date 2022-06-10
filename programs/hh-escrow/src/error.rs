@@ -36,4 +36,6 @@ pub enum ErrorCode {
     InvalidProgramData,
     #[msg("The provided program authority is incorrect.")]
     InvalidProgramAuthority,
+    #[msg("The provided global state owner is incorrect.")]
+    IncorrectGlobalStateOwner,
 }
