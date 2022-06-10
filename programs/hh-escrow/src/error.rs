@@ -38,4 +38,14 @@ pub enum ErrorCode {
     InvalidProgramAuthority,
     #[msg("The provided global state owner is incorrect.")]
     IncorrectGlobalStateOwner,
+    #[msg("The fee token account must be owned by the fee wallet.")]
+    AccountNotOwnedByFeeWallet,
+    #[msg("The user account must not be one of the market-owned accounts.")]
+    UserAccountCannotBeMarketAccount,
+    #[msg("The user account must be owned by the signing user.")]
+    UserAccountIncorrectOwner,
+    #[msg("Claim instruction can only be used on Yes/No finalized markets.")]
+    CannotClaim,
+    #[msg("Must use the associated token account of the fee wallet to collect fees.")]
+    AssociatedTokenAccountRequired,
 }

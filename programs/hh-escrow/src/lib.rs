@@ -53,13 +53,17 @@ pub mod hh_escrow {
         instructions::initialize_global_state::handler(ctx, params)
     }
 
+    pub fn claim(ctx: Context<Claim>) -> ProgramResult {
+        instructions::claim::handler(ctx)
+    }
+
     pub fn set_global_state(
         ctx: Context<SetGlobalState>,
         params: SetGlobalStateParams,
     ) -> ProgramResult {
         instructions::set_global_state::handler(ctx, params)
     }
-    
+
     pub fn resolver_acknowledge(ctx: Context<ResolverAcknowledge>) -> ProgramResult {
         instructions::resolver_acknowledge::handler(ctx)
     }
