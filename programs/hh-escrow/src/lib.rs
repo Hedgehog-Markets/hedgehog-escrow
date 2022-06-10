@@ -59,7 +59,8 @@ pub mod hh_escrow {
     ) -> ProgramResult {
         instructions::set_global_state::handler(ctx, params)
     }
+    
+    pub fn resolver_acknowledge(ctx: Context<ResolverAcknowledge>) -> ProgramResult {
+        instructions::resolver_acknowledge::handler(ctx)
+    }
 }
-
-#[derive(Accounts)]
-pub struct Initialize {}

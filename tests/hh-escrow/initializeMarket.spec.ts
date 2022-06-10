@@ -69,7 +69,7 @@ describe('hh-escrow', () => {
   });
 
   it('initializes a market correctly', async () => {
-    expect.assertions(19);
+    expect.assertions(20);
 
     await program.methods
       .initializeMarket(initializeMarketParams)
@@ -109,6 +109,7 @@ describe('hh-escrow', () => {
     expect(interpretMarketResource(marketAccount.uri)).toBe(
       initializeMarketParams.uri
     );
+    expect(marketAccount.acknowledged).toBe(false);
   });
 
   it('fails to initialize a market if the authority is incorrect', async () => {
