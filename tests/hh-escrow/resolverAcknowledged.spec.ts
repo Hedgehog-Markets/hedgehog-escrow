@@ -128,6 +128,6 @@ describe('hh-escrow deposit tests', () => {
 
     const marketAccount = await program.account.market.fetch(market.publicKey);
 
-    expect(marketAccount.acknowledged).toBeTruthy();
+    expect(marketAccount.acknowledged).toBe(true);
   });
 });

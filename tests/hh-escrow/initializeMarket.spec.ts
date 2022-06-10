@@ -109,7 +109,7 @@ describe('hh-escrow', () => {
     expect(interpretMarketResource(marketAccount.uri)).toBe(
       initializeMarketParams.uri
     );
-    expect(marketAccount.acknowledged).toBeFalsy();
+    expect(marketAccount.acknowledged).toBe(false);
   });
 
   it('fails to initialize a market if the authority is incorrect', async () => {
