@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::Token;
+use anchor_spl::token::{Token, TokenAccount};
 use solana_program::entrypoint::ProgramResult;
 
 use common::traits::KeyRef;
@@ -32,13 +32,13 @@ pub struct Withdraw<'info> {
     /// sufficient balance and matching token mints.
     #[account(mut)]
     pub no_token_account: UncheckedAccount<'info>,
-    /// The user's token account to withdraw to.
-    /// 
-    /// CHECK: We do not read any data from this account. Writes only occur via
-    /// the token program, which performs necessary checks on sufficient balance
-    /// and matching token mints.
-    #[account(mut)]
-    pub user_token_account: UncheckedAccount<'info>,
+    /// The user's token account. We explicitly check the owner for this
+    /// account.
+    #[account(mut,
+        constraint = user_token_account.key_ref() != yes_token_account.key_ref() && user_token_account.key_ref() != no_token_account.key_ref() @ ErrorCode::UserAccountCannotBeMarketAccount,
+        constraint = user_token_account.owner == *user.key_ref() @ ErrorCode::UserAccountIncorrectOwner
+    )]
+    pub user_token_account: Account<'info, TokenAccount>,
     /// The authority for the market token accounts.
     /// 
     /// CHECK: We do not read/write any data from this account.
@@ -100,7 +100,7 @@ pub fn handler(ctx: Context<Withdraw>) -> ProgramResult {
             signer_transfer(
                 &ctx.accounts.token_program,
                 &ctx.accounts.yes_token_account,
-                &ctx.accounts.user_token_account,
+                &ctx.accounts.user_token_account.to_account_info(),
                 &ctx.accounts.authority,
                 &[signer],
                 yes_withdraw,
@@ -112,7 +112,7 @@ pub fn handler(ctx: Context<Withdraw>) -> ProgramResult {
         signer_transfer(
             &ctx.accounts.token_program,
             &ctx.accounts.no_token_account,
-            &ctx.accounts.user_token_account,
+            &ctx.accounts.user_token_account.to_account_info(),
             &ctx.accounts.authority,
             &[signer],
             no_withdraw,
