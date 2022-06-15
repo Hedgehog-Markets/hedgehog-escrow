@@ -3,6 +3,7 @@
 import BN, { isBN } from 'bn.js';
 import type {
   Connection,
+  Keypair,
   PublicKey,
   TransactionInstruction,
 } from '@solana/web3.js';
@@ -16,7 +17,7 @@ import {
   getMinimumBalanceForRentExemptAccount,
   ACCOUNT_SIZE,
 } from '@solana/spl-token';
-import type { Idl } from '@project-serum/anchor';
+import { Idl, Spl } from '@project-serum/anchor';
 
 type IdlErrorCode = NonNullable<Idl['errors']>[number];
 
@@ -172,3 +173,11 @@ export function intoBN(n: IntoBigInt): BN {
 }
 
 export const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
+
+export async function getBalance(account: PublicKey | Keypair): Promise<BN> {
+  if ("publicKey" in account) {
+    account = account.publicKey;
+  }
+  const { amount } = await Spl.token().account.token.fetch(account);
+  return amount;
+}

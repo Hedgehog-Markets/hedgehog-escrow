@@ -159,9 +159,9 @@ pub fn handler(ctx: Context<Claim>) -> ProgramResult {
         .get("authority")
         .ok_or_else(|| error!(ErrorCode::NonCanonicalBumpSeed))?;
 
-    // Fee to the fee wallet.
     ctx.accounts.with_signer_seeds(
         |signer| {
+            // Fee to the fee wallet.
             signer_transfer(
                 &ctx.accounts.token_program,
                 &losing_side_holdings,
@@ -169,14 +169,9 @@ pub fn handler(ctx: Context<Claim>) -> ProgramResult {
                 &ctx.accounts.authority,
                 &[signer],
                 fee,
-            )
-        },
-        bump_seed,
-    )?;
+            )?;
 
-    // Winnings to the user's wallet.
-    ctx.accounts.with_signer_seeds(
-        |signer| {
+            // Winnings to the user's wallet.
             signer_transfer(
                 &ctx.accounts.token_program,
                 &losing_side_holdings,
@@ -184,14 +179,9 @@ pub fn handler(ctx: Context<Claim>) -> ProgramResult {
                 &ctx.accounts.authority,
                 &[signer],
                 remaining_winnings,
-            )
-        },
-        bump_seed,
-    )?;
+            )?;
 
-    // Original position to the user's wallet.
-    ctx.accounts.with_signer_seeds(
-        |signer| {
+            // Original position to the user's wallet.
             signer_transfer(
                 &ctx.accounts.token_program,
                 &winning_side_holdings,
@@ -200,6 +190,7 @@ pub fn handler(ctx: Context<Claim>) -> ProgramResult {
                 &[signer],
                 winning_num,
             )
+
         },
         bump_seed,
     )?;

@@ -1,6 +1,18 @@
+// Because these tests require the presence of program data, they should be run
+// using a separate test validator (`anchor test` injects the program directly
+// instead of deploying, and hence does not initialize program data).
+//
+// Because of this, these tests require a different set up. To run these tests:
+//
+// 1. Clear any existing ledger (usually located in `test-ledger`)
+// 2. Start a local validator with `$ solana-test-validator`.
+// 3. Set the solana cluster to localnet with `solana config set --url
+//    [validator url]`.
+// 4. Run `anchor run pre_test_deploy && anchor test --skip-deploy --skip-build
+//    --skip-local-validator [filter]`.
+// 5. Shut down the validator once tests are complete.
 import * as anchor from '@project-serum/anchor';
 import { Program, LangErrorCode } from '@project-serum/anchor';
-import { findProgramAddressSync } from '@project-serum/anchor/dist/cjs/utils/pubkey';
 import {
   createAssociatedTokenAccountInstruction,
   getAssociatedTokenAddress,
@@ -165,7 +177,7 @@ describe('hh-escrow claim failure tests', () => {
   it('fails to claim if the provided global state is incorrect', async () => {
     expect.assertions(1);
 
-    const [otherGlobalState] = findProgramAddressSync(
+    const [otherGlobalState] = PublicKey.findProgramAddressSync(
       [Buffer.from('globals')],
       program.programId
     );
@@ -451,6 +463,4 @@ describe('hh-escrow claim failure tests', () => {
         .rpc()
     ).rejects.toThrowProgramError(ErrorCode.NotFinalized);
   });
-
-  // it('successfully claims winnings', async () => {});
 });

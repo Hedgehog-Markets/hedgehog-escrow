@@ -379,22 +379,12 @@ describe('hh-escrow claim clock-dependent tests', () => {
     const userPositionAccount = await program.account.userPosition.fetch(
       userPosition
     );
-    const userAcc = await provider.connection.getTokenAccountBalance(
-      userTokenAccount.publicKey
-    );
-    const feeAcc = await provider.connection.getTokenAccountBalance(feeAccount);
-    const yesAcc = await provider.connection.getTokenAccountBalance(
-      yesTokenAccount
-    );
-    const noAcc = await provider.connection.getTokenAccountBalance(
-      noTokenAccount
-    );
 
     expect(userPositionAccount.yesAmount).toEqualBN(0);
     expect(userPositionAccount.noAmount).toEqualBN(0);
-    expect(yesAcc.value.amount).toBe('999942');
-    expect(noAcc.value.amount).toBe(fillNo.toString());
-    expect(feeAcc.value.amount).toBe('1');
-    expect(userAcc.value.amount).toBe('4000057');
+    await expect(yesTokenAccount).toHaveBalance('999942');
+    await expect(noTokenAccount).toHaveBalance(fillNo);
+    await expect(feeAccount).toHaveBalance('1');
+    await expect(userTokenAccount).toHaveBalance('4000057');
   });
 });
