@@ -1,9 +1,9 @@
-import { PublicKey } from '@solana/web3.js';
+import { Keypair, PublicKey } from '@solana/web3.js';
 import { isError } from '@jest/expect-utils';
 import { formatStackTrace, separateMessageFromStack } from 'jest-message-util';
 import { isPrimitive } from 'jest-get-type';
 import { AnchorError, ProgramError } from '@project-serum/anchor';
-import { IntoBigInt, intoBN } from './utils';
+import { getBalance, IntoBigInt, intoBN } from './utils';
 import { BN, isBN } from 'bn.js';
 
 type Constructor = new (...args: never) => unknown;
@@ -237,6 +237,46 @@ expect.extend({
             'Received error code',
             this.expand !== false
           );
+
+    return { pass, message };
+  },
+
+  async toHaveBalance(received: unknown, expected: IntoBigInt) {
+    const matcherName = "toHaveBalance";
+    const options = {
+      isNot: this.isNot,
+      promise: this.promise,
+    };
+
+    expected = intoBN(expected);
+
+    if (received instanceof Keypair) {
+      received = received.publicKey;
+    }
+
+    if (!(received instanceof PublicKey)) {
+      return {
+        pass: false,
+        message: () =>
+          this.utils.matcherHint(matcherName, undefined, undefined, options) +
+          "\n\n" +
+          printExpectedConstructorName(this, PublicKey) +
+          printReceivedInfo(this, received),
+      };
+    }
+
+    const balance = await getBalance(received);
+
+    const pass = expected.eq(balance);
+    const message = pass
+      ? () =>
+          this.utils.matcherHint(matcherName, undefined, undefined, options) +
+          `\n\nExpected: ${this.utils.EXPECTED_COLOR(expected)}`
+      : () =>
+          this.utils.matcherHint(matcherName, undefined, undefined, options) +
+          `\n\nExpected: ${this.utils.EXPECTED_COLOR(
+            expected,
+          )}\nReceived: ${this.utils.RECEIVED_COLOR(received)}`;
 
     return { pass, message };
   },

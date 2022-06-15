@@ -1,3 +1,4 @@
+pub mod claim;
 pub mod deposit;
 pub mod initialize_global_state;
 pub mod initialize_market;
@@ -7,6 +8,7 @@ pub mod set_global_state;
 pub mod update_state;
 pub mod withdraw;
 
+pub use self::claim::*;
 pub use self::deposit::*;
 pub use self::initialize_global_state::*;
 pub use self::initialize_market::*;

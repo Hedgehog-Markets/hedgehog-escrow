@@ -19,6 +19,10 @@ interface CustomMatchers<R = unknown> {
    * Checks that specific `AnchorError` is thrown inside a function.
    */
   toThrowAnchorError(code: number): R;
+  /**
+   * Checks that the balance of a token account is what you expect.
+   */
+  toHaveBalance(expected: IntoBigInt): Promise<R>;
 }
 
 declare global {
