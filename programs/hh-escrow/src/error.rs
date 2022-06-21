@@ -48,4 +48,6 @@ pub enum ErrorCode {
     CannotClaim,
     #[msg("Must use the associated token account of the fee wallet to collect fees.")]
     AssociatedTokenAccountRequired,
+    #[msg("Cannot have nonzero amounts.")]
+    CannotHaveNonzeroAmounts,
 }
