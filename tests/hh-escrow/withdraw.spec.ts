@@ -256,6 +256,79 @@ describe('hh-escrow withdraw tests', () => {
     ).rejects.toThrowAnchorError(LangErrorCode.ConstraintSeeds);
   });
 
+  it('fails to withdraw if the user token account provided is the yes token account', async () => {
+    expect.assertions(1);
+
+    await expect(
+      program.methods
+        .withdraw()
+        .accounts({
+          user: user.publicKey,
+          yesTokenAccount,
+          noTokenAccount,
+          userTokenAccount: yesTokenAccount,
+          authority,
+          market: market.publicKey,
+          userPosition,
+        })
+        .preInstructions([initializeIx, userPositionIx])
+        .signers([market, user])
+        .rpc()
+    ).rejects.toThrowAnchorError(ErrorCode.UserAccountCannotBeMarketAccount);
+  });
+
+  it('fails to withdraw if the user token account provided is the no token account', async () => {
+    expect.assertions(1);
+
+    await expect(
+      program.methods
+        .withdraw()
+        .accounts({
+          user: user.publicKey,
+          yesTokenAccount,
+          noTokenAccount,
+          userTokenAccount: noTokenAccount,
+          authority,
+          market: market.publicKey,
+          userPosition,
+        })
+        .preInstructions([initializeIx, userPositionIx])
+        .signers([market, user])
+        .rpc()
+    ).rejects.toThrowAnchorError(ErrorCode.UserAccountCannotBeMarketAccount);
+  });
+
+  it('fails to withdraw if the user token account is not owned by the user', async () => {
+    expect.assertions(1);
+
+    const newTokenAccount = Keypair.generate();
+    const newUser = Keypair.generate().publicKey;
+    const newTokenAccountIxs = await createInitAccountInstructions({
+      account: newTokenAccount.publicKey,
+      mint: mint.publicKey,
+      user: newUser,
+      connection: provider.connection,
+      payer: provider.wallet.publicKey,
+    });
+
+    await expect(
+      program.methods
+        .withdraw()
+        .accounts({
+          user: user.publicKey,
+          yesTokenAccount,
+          noTokenAccount,
+          userTokenAccount: newTokenAccount.publicKey,
+          authority,
+          market: market.publicKey,
+          userPosition,
+        })
+        .preInstructions([initializeIx, userPositionIx, ...newTokenAccountIxs])
+        .signers([market, user, newTokenAccount])
+        .rpc()
+    ).rejects.toThrowAnchorError(ErrorCode.UserAccountIncorrectOwner);
+  });
+
   it('withdraws tokens for a user', async () => {
     expect.assertions(12);
 
