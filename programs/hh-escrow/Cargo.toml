@@ -1,7 +1,7 @@
 [package]
 name = "hh-escrow"
-version = "0.1.0"
-description = "Escrow program for p2p predictions"
+version = "1.0.0"
+description = "Program for P2P predictions"
 edition = "2021"
 rust-version = "1.59"
 

@@ -4,8 +4,8 @@ anchor_version = "0.24.2"
 hh_escrow = "27yeAvyRBxkiYT2NqZBjJDe4PNRcCxyqVQ1yXBpj2Hjt"
 
 [provider]
-cluster = "localnet"
-wallet = "test_wallet.json"
+cluster = "devnet"
+wallet = "devnet-authority"
 
 [scripts]
 test = "yarn run jest"
