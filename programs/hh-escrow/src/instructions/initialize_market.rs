@@ -54,7 +54,7 @@ pub struct InitializeMarket<'info> {
         seeds = [b"yes", market.key_ref().as_ref()],
         bump,
     )]
-    pub yes_token_account: Account<'info, TokenAccount>,
+    pub yes_token_account: Box<Account<'info, TokenAccount>>,
     /// Escrow for tokens on the no side of the market.
     #[account(
         init,
@@ -64,7 +64,7 @@ pub struct InitializeMarket<'info> {
         seeds = [b"no", market.key_ref().as_ref()],
         bump,
     )]
-    pub no_token_account: Account<'info, TokenAccount>,
+    pub no_token_account: Box<Account<'info, TokenAccount>>,
     /// The Solana System Program.
     pub system_program: Program<'info, System>,
     /// The SPL Token Program.
