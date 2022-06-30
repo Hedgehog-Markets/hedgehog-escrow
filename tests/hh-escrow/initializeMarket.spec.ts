@@ -245,4 +245,46 @@ describe('hh-escrow', () => {
         .rpc()
     ).rejects.toThrowProgramError(ErrorCode.InvalidExpiryTimestamp);
   });
+
+  it('fails to initialize a market if the yes/no account amounts are 0', async () => {
+    expect.assertions(2);
+
+    let newMarketParams = {
+      ...initializeMarketParams,
+      yesAmount: intoU64BN(0),
+    };
+
+    await expect(
+      program.methods
+        .initializeMarket(newMarketParams)
+        .accounts({
+          market: market.publicKey,
+          tokenMint: mint.publicKey,
+          authority,
+          yesTokenAccount,
+          noTokenAccount,
+        })
+        .signers([market])
+        .rpc()
+    ).rejects.toThrowProgramError(ErrorCode.CannotHaveNonzeroAmounts);
+
+    newMarketParams = {
+      ...initializeMarketParams,
+      noAmount: intoU64BN(0),
+    };
+
+    await expect(
+      program.methods
+        .initializeMarket(newMarketParams)
+        .accounts({
+          market: market.publicKey,
+          tokenMint: mint.publicKey,
+          authority,
+          yesTokenAccount,
+          noTokenAccount,
+        })
+        .signers([market])
+        .rpc()
+    ).rejects.toThrowProgramError(ErrorCode.CannotHaveNonzeroAmounts);
+  });
 });

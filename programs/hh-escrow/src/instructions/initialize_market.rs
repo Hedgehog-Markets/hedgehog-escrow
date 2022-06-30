@@ -74,13 +74,21 @@ pub struct InitializeMarket<'info> {
 }
 
 impl InitializeMarket<'_> {
+    pub fn validate_params(&self, yes_amount: u64, no_amount: u64) -> Result<()> {
+        if yes_amount == 0 || no_amount == 0 {
+            return Err(error!(ErrorCode::CannotHaveNonzeroAmounts));
+        }
+
+        Ok(())
+    }
+
     pub fn validate_ts(&self, close_ts: u64, expiry_ts: u64) -> Result<()> {
         let now = Clock::get()?.unix_timestamp as u64;
         if close_ts < now {
-            return Err(ErrorCode::InvalidCloseTimestamp.into());
+            return Err(error!(ErrorCode::InvalidCloseTimestamp));
         }
         if expiry_ts < close_ts {
-            return Err(ErrorCode::InvalidExpiryTimestamp.into());
+            return Err(error!(ErrorCode::InvalidExpiryTimestamp));
         }
 
         Ok(())
@@ -98,7 +106,8 @@ pub fn handler(ctx: Context<InitializeMarket>, params: InitializeMarketParams) -
         resolver,
     } = params;
 
-    // Exit early if timestamps are invalid.
+    // Exit early if timestamps or parameters are invalid.
+    ctx.accounts.validate_params(yes_amount, no_amount)?;
     ctx.accounts.validate_ts(close_ts, expiry_ts)?;
 
     let market = &mut ctx.accounts.market;
