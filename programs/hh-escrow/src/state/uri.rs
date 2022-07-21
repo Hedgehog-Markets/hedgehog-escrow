@@ -23,6 +23,9 @@ impl Default for UriResource {
 }
 
 impl UriResource {
+    #[allow(clippy::identity_op)]
+    pub const LEN: usize = 2 + (URI_MAX_LEN * 1);
+
     /// Validates the resource.
     pub fn validate(uri: &str) -> Result<UriResource> {
         let len = uri.len();
@@ -38,6 +41,4 @@ impl UriResource {
             uri: bytes,
         })
     }
-
-    pub const LEN: usize = 2 + URI_MAX_LEN * 1;
 }

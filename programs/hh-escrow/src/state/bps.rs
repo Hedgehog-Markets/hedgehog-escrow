@@ -25,6 +25,8 @@ pub struct Bps {
 }
 
 impl Bps {
+    pub const LEN: usize = 2;
+
     /// The maximum value that a [`Bps`] can be.
     pub const MAX: u16 = CommonBps::MAX;
 

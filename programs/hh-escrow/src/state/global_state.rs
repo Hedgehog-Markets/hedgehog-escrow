@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+use solana_program::pubkey::PUBKEY_BYTES;
 
 use crate::state::Bps;
 
@@ -15,5 +16,5 @@ pub struct GlobalState {
 }
 
 impl GlobalState {
-    pub const LEN: usize = 32 + 2 + 32;
+    pub const LEN: usize = PUBKEY_BYTES + Bps::LEN + PUBKEY_BYTES;
 }

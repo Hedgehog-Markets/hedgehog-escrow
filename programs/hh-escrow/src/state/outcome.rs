@@ -14,6 +14,10 @@ pub enum Outcome {
     Invalid,
 }
 
+impl Outcome {
+    pub const LEN: usize = 1;
+}
+
 impl Default for Outcome {
     #[inline]
     fn default() -> Self {
