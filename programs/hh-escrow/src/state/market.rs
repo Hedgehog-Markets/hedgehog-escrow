@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+use solana_program::pubkey::PUBKEY_BYTES;
 
 use crate::error::ErrorCode;
 use crate::state::{Outcome, UriResource};
@@ -52,7 +53,9 @@ pub struct Market {
 }
 
 impl Market {
-    pub const LEN: usize = 5 * 32 + 7 * 8 + 4 + 1 + 1 + 2 * 1 + 1 + UriResource::LEN;
+    #[allow(clippy::identity_op)]
+    pub const LEN: usize =
+        (5 * PUBKEY_BYTES) + (7 * 8) + 4 + Outcome::LEN + 1 + (2 * 1) + 1 + UriResource::LEN;
 
     /// Checks whether the market is finalized. If the `finalized` flag is not
     /// flipped, checks conditions that would cause the market to be finalized,
@@ -77,7 +80,7 @@ impl Market {
             >= self
                 .expiry_ts
                 .checked_add(MAX_DELAY_SEC.into())
-                .ok_or(ErrorCode::Overflow)?
+                .ok_or_else(|| error!(ErrorCode::Overflow))?
         {
             if self.outcome == Outcome::Open {
                 self.outcome = Outcome::Invalid;
@@ -92,7 +95,7 @@ impl Market {
                 >= self
                     .outcome_ts
                     .checked_add(self.resolution_delay.into())
-                    .ok_or(ErrorCode::Overflow)?
+                    .ok_or_else(|| error!(ErrorCode::Overflow))?
         {
             self.finalized = true;
             return Ok(true);
@@ -131,9 +134,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = market.finalize(0).unwrap();
-
-        assert_eq!(result, true);
+        assert!(market.finalize(0).unwrap());
     }
 
     // Check that we finalize the market if it fails to fill all its funds for
@@ -146,10 +147,9 @@ mod tests {
             ..Default::default()
         };
 
-        let result = market.finalize(0).unwrap();
+        assert!(market.finalize(0).unwrap());
 
-        assert_eq!(result, true);
-        assert_eq!(market.finalized, true);
+        assert!(market.finalized);
         assert_eq!(market.outcome, Outcome::Invalid);
     }
 
@@ -163,10 +163,9 @@ mod tests {
             ..Default::default()
         };
 
-        let result = market.finalize(0).unwrap();
+        assert!(market.finalize(0).unwrap());
 
-        assert_eq!(result, true);
-        assert_eq!(market.finalized, true);
+        assert!(market.finalized);
         assert_eq!(market.outcome, Outcome::Invalid);
     }
 
@@ -179,10 +178,9 @@ mod tests {
             ..Default::default()
         };
 
-        let result = market.finalize(MAX_DELAY_SEC.into()).unwrap();
+        assert!(market.finalize(MAX_DELAY_SEC as u64).unwrap());
 
-        assert_eq!(result, true);
-        assert_eq!(market.finalized, true);
+        assert!(market.finalized);
         assert_eq!(market.outcome_ts, 0);
         assert_eq!(market.outcome, Outcome::Invalid);
     }
@@ -198,10 +196,9 @@ mod tests {
             ..Default::default()
         };
 
-        let result = market.finalize(MAX_DELAY_SEC.into()).unwrap();
+        assert!(market.finalize(MAX_DELAY_SEC as u64).unwrap());
 
-        assert_eq!(result, true);
-        assert_eq!(market.finalized, true);
+        assert!(market.finalized);
         assert_eq!(market.outcome, Outcome::Yes);
     }
 
@@ -217,10 +214,9 @@ mod tests {
             ..Default::default()
         };
 
-        let result = market.finalize((MAX_DELAY_SEC - 10).into()).unwrap();
+        assert!(market.finalize((MAX_DELAY_SEC - 10) as u64).unwrap());
 
-        assert_eq!(result, true);
-        assert_eq!(market.finalized, true);
+        assert!(market.finalized);
         assert_eq!(market.outcome, Outcome::Yes);
     }
 }

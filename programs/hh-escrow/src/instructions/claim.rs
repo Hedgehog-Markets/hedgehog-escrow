@@ -47,8 +47,12 @@ pub struct Claim<'info> {
     /// The user's [UserPosition] account.
     #[account(
         mut,
-        seeds = [b"user", user.key_ref().as_ref(), market.key_ref().as_ref()],
-        bump
+        seeds = [
+            b"user",
+            user.key_ref().as_ref(),
+            market.key_ref().as_ref(),
+        ],
+        bump,
     )]
     pub user_position: Account<'info, UserPosition>,
     /// The [Market] to claim winnings for.
@@ -106,8 +110,8 @@ impl Claim<'_> {
 pub fn handler(ctx: Context<Claim>) -> ProgramResult {
     ctx.accounts.can_claim()?;
 
-    let user_position = &ctx.accounts.user_position;
-    let market = &ctx.accounts.market;
+    let user_position = &mut ctx.accounts.user_position;
+    let market = &*ctx.accounts.market;
 
     // Compute the winnings.
     let (winning_num, winning_denom, pool, winning_side_holdings, losing_side_holdings) =
@@ -130,7 +134,6 @@ pub fn handler(ctx: Context<Claim>) -> ProgramResult {
         };
 
     // Reset the user position.
-    let user_position = &mut ctx.accounts.user_position;
     user_position.yes_amount = 0;
     user_position.no_amount = 0;
 
@@ -148,10 +151,7 @@ pub fn handler(ctx: Context<Claim>) -> ProgramResult {
     let fee = ctx.accounts.global_state.fee_cut_bps.fee(winnings);
 
     // Clip remaining winnings to 0.
-    let remaining_winnings = match winnings.checked_sub(fee) {
-        Some(x) => x,
-        None => 0,
-    };
+    let remaining_winnings = winnings.saturating_sub(fee);
 
     // Transfer.
     let bump_seed = *ctx
@@ -164,7 +164,7 @@ pub fn handler(ctx: Context<Claim>) -> ProgramResult {
             // Fee to the fee wallet.
             signer_transfer(
                 &ctx.accounts.token_program,
-                &losing_side_holdings,
+                losing_side_holdings,
                 &ctx.accounts.fee_account.to_account_info(),
                 &ctx.accounts.authority,
                 &[signer],
@@ -174,7 +174,7 @@ pub fn handler(ctx: Context<Claim>) -> ProgramResult {
             // Winnings to the user's wallet.
             signer_transfer(
                 &ctx.accounts.token_program,
-                &losing_side_holdings,
+                losing_side_holdings,
                 &ctx.accounts.user_token_account.to_account_info(),
                 &ctx.accounts.authority,
                 &[signer],
@@ -184,13 +184,12 @@ pub fn handler(ctx: Context<Claim>) -> ProgramResult {
             // Original position to the user's wallet.
             signer_transfer(
                 &ctx.accounts.token_program,
-                &winning_side_holdings,
+                winning_side_holdings,
                 &ctx.accounts.user_token_account.to_account_info(),
                 &ctx.accounts.authority,
                 &[signer],
                 winning_num,
             )
-
         },
         bump_seed,
     )?;
