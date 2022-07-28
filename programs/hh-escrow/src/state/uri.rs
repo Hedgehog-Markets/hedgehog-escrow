@@ -2,9 +2,11 @@ use anchor_lang::prelude::*;
 
 use crate::error::ErrorCode;
 
-const URI_MAX_LEN: usize = 256;
+const URI_MAX_LEN: usize = 200;
 
 /// A string URI.
+///
+/// This should point to an off-chain JSON file that contains additional data.
 #[derive(Clone, AnchorDeserialize, AnchorSerialize)]
 pub struct UriResource {
     /// The length of the URI.
