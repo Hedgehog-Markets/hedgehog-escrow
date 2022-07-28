@@ -89,7 +89,7 @@ pub unsafe fn unchecked_shr(n: u64, shift: u32) -> u64 {
 pub fn div_ceil(x: u64, y: NonZeroU64) -> u64 {
     let q = x / y;
     let r = x % y;
-    // Consider this for the two cases:
+    // Consider this for the 3 cases:
     //
     // Case y == 1:
     //      q = x
@@ -97,7 +97,11 @@ pub fn div_ceil(x: u64, y: NonZeroU64) -> u64 {
     //   => q + (r != 0) = q
     //   => q + (r != 0) = x
     //
-    // Case y > 1:
+    // Case y > 1 and r == 0:
+    //      q = x / y <= x
+    //   => q + (r != 0) = q <= x
+    //
+    // Case y > 1 and r > 0:
     //      q = x / y < x
     //   => q + 1 <= x
     //   => q + (r != 0) <= q + 1 <= x
