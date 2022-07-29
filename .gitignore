@@ -9,3 +9,4 @@ node_modules
 # Secrets
 test_wallet.json
 devnet-authority
+mainnet-authority
