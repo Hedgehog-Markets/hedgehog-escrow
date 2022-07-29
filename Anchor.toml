@@ -2,6 +2,7 @@ anchor_version = "0.24.2"
 
 [programs.localnet]
 hh_escrow = "27yeAvyRBxkiYT2NqZBjJDe4PNRcCxyqVQ1yXBpj2Hjt"
+switchboard_updater = "5CSY8ocw2SAGZMX1aS2qLWoUXXyjgKVhxSC8aGSCkz8W"
 
 [provider]
 cluster = "localnet"

@@ -11,46 +11,49 @@
 // 4. Run `anchor run pre_test_deploy && anchor test --skip-deploy --skip-build
 //    --skip-local-validator [filter]`.
 // 5. Shut down the validator once tests are complete.
-import * as anchor from '@project-serum/anchor';
-import { Program, LangErrorCode } from '@project-serum/anchor';
-import {
-  createAssociatedTokenAccountInstruction,
-  getAssociatedTokenAddress,
-} from '@solana/spl-token';
+
+import type { HhEscrow } from "../../target/types/hh_escrow";
+import type { InitializeMarketParams } from "./utils";
+
+import * as anchor from "@project-serum/anchor";
+
+import { Program, LangErrorCode } from "@project-serum/anchor";
 import {
   Keypair,
   PublicKey,
   SystemProgram,
   Transaction,
   TransactionInstruction,
-} from '@solana/web3.js';
-import type { HhEscrow } from '../../target/types/hh_escrow';
-import { intoU64BN } from '../u64';
+} from "@solana/web3.js";
 import {
+  createAssociatedTokenAccountInstruction,
+  getAssociatedTokenAddress,
+} from "@solana/spl-token";
+
+import {
+  BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
+  intoU64BN,
   createInitAccountInstructions,
   createInitMintInstructions,
-} from '../utils';
-import { ErrorCode, InitializeMarketParams } from './utils';
+} from "../utils";
+
+import { ErrorCode, program } from "./utils";
+
+const YES_AMOUNT = 1_000_000;
+const NO_AMOUNT = 2_000_000;
 
 // These test shouldn't be flaky since they hit failures that can be
 // consistently set without worrying about the clock.
-describe('hh-escrow claim failure tests', () => {
-  const YES_AMOUNT = 1_000_000;
-  const NO_AMOUNT = 2_000_000;
-
-  // Configure the client to use the local cluster.
-  const provider = anchor.Provider.env();
-  anchor.setProvider(provider);
-
-  const program = anchor.workspace.HhEscrow as Program<HhEscrow>;
-  const programDataAddress = PublicKey.findProgramAddressSync(
+describe("hh-escrow claim failure tests", () => {
+  const [programDataAddress] = PublicKey.findProgramAddressSync(
     [program.programId.toBytes()],
-    new PublicKey('BPFLoaderUpgradeab1e11111111111111111111111')
-  )[0];
-  const [globalState] = PublicKey.findProgramAddressSync(
-    [Buffer.from('global')],
-    program.programId
+    BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
   );
+  const [globalState] = PublicKey.findProgramAddressSync(
+    [Buffer.from("global")],
+    program.programId,
+  );
+
   const feeWallet = Keypair.generate();
   const globalStateOwner = Keypair.generate();
 
@@ -65,7 +68,7 @@ describe('hh-escrow claim failure tests', () => {
     yesAmount: intoU64BN(YES_AMOUNT),
     noAmount: intoU64BN(NO_AMOUNT),
     resolver: resolver.publicKey,
-    uri: '0'.repeat(256),
+    uri: "0".repeat(256),
   };
 
   // Accounts.
@@ -112,44 +115,44 @@ describe('hh-escrow claim failure tests', () => {
     });
     feeAccount = await getAssociatedTokenAddress(
       mint.publicKey,
-      feeWallet.publicKey
+      feeWallet.publicKey,
     );
     const feeTokenAccountIx = await createAssociatedTokenAccountInstruction(
       provider.wallet.publicKey,
       feeAccount,
       feeWallet.publicKey,
-      mint.publicKey
+      mint.publicKey,
     );
 
     await provider.send(
       new Transaction().add(
         ...mintIxs,
         ...userTokenAccountIxs,
-        feeTokenAccountIx
+        feeTokenAccountIx,
       ),
-      [mint, userTokenAccount]
+      [mint, userTokenAccount],
     );
 
     market = Keypair.generate();
     [authority] = PublicKey.findProgramAddressSync(
-      [Buffer.from('authority'), market.publicKey.toBuffer()],
-      program.programId
+      [Buffer.from("authority"), market.publicKey.toBuffer()],
+      program.programId,
     );
     [yesTokenAccount] = PublicKey.findProgramAddressSync(
-      [Buffer.from('yes'), market.publicKey.toBuffer()],
-      program.programId
+      [Buffer.from("yes"), market.publicKey.toBuffer()],
+      program.programId,
     );
     [noTokenAccount] = PublicKey.findProgramAddressSync(
-      [Buffer.from('no'), market.publicKey.toBuffer()],
-      program.programId
+      [Buffer.from("no"), market.publicKey.toBuffer()],
+      program.programId,
     );
     [userPosition] = PublicKey.findProgramAddressSync(
       [
-        Buffer.from('user'),
+        Buffer.from("user"),
         user.publicKey.toBuffer(),
         market.publicKey.toBuffer(),
       ],
-      program.programId
+      program.programId,
     );
 
     initializeIx = await program.methods
@@ -174,12 +177,12 @@ describe('hh-escrow claim failure tests', () => {
       .rpc();
   });
 
-  it('fails to claim if the provided global state is incorrect', async () => {
+  it("fails to claim if the provided global state is incorrect", async () => {
     expect.assertions(1);
 
     const [otherGlobalState] = PublicKey.findProgramAddressSync(
-      [Buffer.from('globals')],
-      program.programId
+      [Buffer.from("globals")],
+      program.programId,
     );
 
     await expect(
@@ -197,11 +200,11 @@ describe('hh-escrow claim failure tests', () => {
           user: user.publicKey,
         })
         .signers([user])
-        .rpc()
+        .rpc(),
     ).rejects.toThrow();
   });
 
-  it('fails to claim if the provided fee account is not owned by the fee wallet', async () => {
+  it("fails to claim if the provided fee account is not owned by the fee wallet", async () => {
     expect.assertions(1);
 
     const otherAccount = Keypair.generate();
@@ -229,11 +232,11 @@ describe('hh-escrow claim failure tests', () => {
         })
         .preInstructions([...otherAccountIxs])
         .signers([user, otherAccount])
-        .rpc()
+        .rpc(),
     ).rejects.toThrowAnchorError(ErrorCode.AccountNotOwnedByFeeWallet);
   });
 
-  it('fails to claim if the provided fee account is not the associated token account', async () => {
+  it("fails to claim if the provided fee account is not the associated token account", async () => {
     expect.assertions(1);
 
     const otherAccount = Keypair.generate();
@@ -261,11 +264,11 @@ describe('hh-escrow claim failure tests', () => {
         })
         .preInstructions([...otherAccountIxs])
         .signers([user, otherAccount])
-        .rpc()
+        .rpc(),
     ).rejects.toThrowProgramError(ErrorCode.AssociatedTokenAccountRequired);
   });
 
-  it('fails to claim if the user provides the yes/no token account', async () => {
+  it("fails to claim if the user provides the yes/no token account", async () => {
     expect.assertions(2);
 
     await expect(
@@ -283,7 +286,7 @@ describe('hh-escrow claim failure tests', () => {
           user: user.publicKey,
         })
         .signers([user])
-        .rpc()
+        .rpc(),
     ).rejects.toThrowAnchorError(ErrorCode.UserAccountCannotBeMarketAccount);
 
     await expect(
@@ -301,11 +304,11 @@ describe('hh-escrow claim failure tests', () => {
           user: user.publicKey,
         })
         .signers([user])
-        .rpc()
+        .rpc(),
     ).rejects.toThrowAnchorError(ErrorCode.UserAccountCannotBeMarketAccount);
   });
 
-  it('fails to claim if the user provides a token account they do not own', async () => {
+  it("fails to claim if the user provides a token account they do not own", async () => {
     expect.assertions(1);
 
     const otherAccount = Keypair.generate();
@@ -333,21 +336,21 @@ describe('hh-escrow claim failure tests', () => {
         })
         .preInstructions([...otherAccountIxs])
         .signers([user, otherAccount])
-        .rpc()
+        .rpc(),
     ).rejects.toThrowAnchorError(ErrorCode.UserAccountIncorrectOwner);
   });
 
-  it('fails to claim if the user position is incorrect', async () => {
+  it("fails to claim if the user position is incorrect", async () => {
     expect.assertions(1);
 
     const otherUser = Keypair.generate();
     const [otherUserPosition] = PublicKey.findProgramAddressSync(
       [
-        Buffer.from('user'),
+        Buffer.from("user"),
         otherUser.publicKey.toBuffer(),
         market.publicKey.toBuffer(),
       ],
-      program.programId
+      program.programId,
     );
     const otherUserPositionIx = await program.methods
       .initializeUserPosition()
@@ -374,11 +377,11 @@ describe('hh-escrow claim failure tests', () => {
         })
         .preInstructions([otherUserPositionIx])
         .signers([user, otherUser])
-        .rpc()
+        .rpc(),
     ).rejects.toThrowAnchorError(LangErrorCode.ConstraintSeeds);
   });
 
-  it('fails to claim if the yes token account provided is incorrect', async () => {
+  it("fails to claim if the yes token account provided is incorrect", async () => {
     expect.assertions(1);
 
     const otherAccount = Keypair.generate();
@@ -406,11 +409,11 @@ describe('hh-escrow claim failure tests', () => {
         })
         .preInstructions([...otherAccountIxs])
         .signers([user, otherAccount])
-        .rpc()
+        .rpc(),
     ).rejects.toThrowAnchorError(ErrorCode.IncorrectYesEscrow);
   });
 
-  it('fails to claim if the no token account provided is incorrect', async () => {
+  it("fails to claim if the no token account provided is incorrect", async () => {
     expect.assertions(1);
 
     const otherAccount = Keypair.generate();
@@ -438,11 +441,11 @@ describe('hh-escrow claim failure tests', () => {
         })
         .preInstructions([...otherAccountIxs])
         .signers([user, otherAccount])
-        .rpc()
+        .rpc(),
     ).rejects.toThrowAnchorError(ErrorCode.IncorrectNoEscrow);
   });
 
-  it('fails to claim if the market has not finalized', async () => {
+  it("fails to claim if the market has not finalized", async () => {
     expect.assertions(1);
 
     await expect(
@@ -460,7 +463,7 @@ describe('hh-escrow claim failure tests', () => {
           user: user.publicKey,
         })
         .signers([user])
-        .rpc()
+        .rpc(),
     ).rejects.toThrowProgramError(ErrorCode.NotFinalized);
   });
 });

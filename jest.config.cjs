@@ -8,8 +8,6 @@ module.exports = {
 
   testEnvironment: "node",
 
-  forceExit: true,
-
   setupFilesAfterEnv: [
     "jest-plugin-must-assert",
     "<rootDir>/tests/matchers.ts",
