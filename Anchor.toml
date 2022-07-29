@@ -1,7 +1,7 @@
 anchor_version = "0.24.2"
 
 [programs.localnet]
-hh_escrow = "27yeAvyRBxkiYT2NqZBjJDe4PNRcCxyqVQ1yXBpj2Hjt"
+hh_escrow = "Yb4spZYFpgad4pDvV1mdU7pFU9vQWNeDS4degy7eR1u"
 switchboard_updater = "5CSY8ocw2SAGZMX1aS2qLWoUXXyjgKVhxSC8aGSCkz8W"
 
 [provider]
