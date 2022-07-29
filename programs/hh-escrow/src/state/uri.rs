@@ -19,7 +19,7 @@ impl Default for UriResource {
     fn default() -> Self {
         UriResource {
             len: 0,
-            uri: [0u8; URI_MAX_LEN],
+            uri: [0; URI_MAX_LEN],
         }
     }
 }

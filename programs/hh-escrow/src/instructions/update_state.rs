@@ -1,80 +1,84 @@
 use anchor_lang::prelude::*;
-use solana_program::entrypoint::ProgramResult;
+use common::traits::KeyRef;
 
 use crate::error::ErrorCode;
 use crate::state::{Market, Outcome};
 
 #[derive(Clone, AnchorDeserialize, AnchorSerialize)]
 pub struct UpdateStateParams {
+    /// The outcome.
     pub outcome: Outcome,
 }
 
 #[derive(Accounts)]
 #[instruction(params: UpdateStateParams)]
 pub struct UpdateState<'info> {
+    /// The market to update.
     #[account(mut)]
     pub market: Account<'info, Market>,
+    /// The market resolver.
     pub resolver: Signer<'info>,
 }
 
 impl UpdateState<'_> {
-    /// Legal updates:
-    /// - Before the expiry ts:
-    ///   - Open => Invalid, Invalid => Open (latter resets outcome_ts to 0)
-    /// - After the expiry ts:
-    ///   - Cannot return to Open.
-    ///
-    /// Finalization checks should occur before this check.
-    pub fn can_update(&self, now: u64, outcome: Outcome) -> Result<()> {
-        if *self.resolver.key != self.market.resolver {
+    /// Verify that the signing resolver is the market resolver.
+    fn verify_resolver(&self) -> Result<()> {
+        if *self.resolver.key_ref() != self.market.resolver {
             return Err(error!(ErrorCode::IncorrectResolver));
         }
+        Ok(())
+    }
 
+    /// Verify the that the outcome transition is allowed.
+    ///
+    /// Returns the `outcome_ts` if the transition is allowed.
+    fn verify_transition(&self, now: u64, outcome: Outcome) -> Result<u64> {
+        // If the market has not expired yet, we can only transition between an
+        // `Invalid` or `Open` outcome.
         if now < self.market.expiry_ts {
-            let legal_transition = match self.market.outcome {
-                Outcome::Open => matches!(outcome, Outcome::Invalid),
-                Outcome::Yes => false,
-                Outcome::No => false,
-                Outcome::Invalid => matches!(outcome, Outcome::Open),
+            return match self.market.outcome {
+                // Transitioning from `Open` to `Invalid` is allowed.
+                Outcome::Open if matches!(outcome, Outcome::Invalid) => Ok(now),
+                // Transitioning from `Invalid` to `Open` is allowed.
+                //
+                // This resets the `outcome_ts` to 0.
+                Outcome::Invalid if matches!(outcome, Outcome::Open) => Ok(0),
+                // Otherwise, the transition is not allowed.
+                _ => Err(error!(ErrorCode::InvalidTransition)),
             };
-
-            if legal_transition {
-                return Ok(());
-            }
-
-            return Err(error!(ErrorCode::InvalidTransition));
         }
 
+        // The market has expired, so transitioning to `Open` is not allowed.
         if outcome == Outcome::Open {
             return Err(error!(ErrorCode::InvalidTransition));
         }
 
-        Ok(())
+        Ok(now)
     }
 }
 
-pub fn handler(ctx: Context<UpdateState>, params: UpdateStateParams) -> ProgramResult {
+pub fn handler(ctx: Context<UpdateState>, params: UpdateStateParams) -> Result<()> {
     let UpdateStateParams { outcome } = params;
-    let now = Clock::get()?.unix_timestamp as u64;
-    let is_finalized = ctx.accounts.market.finalize(now)?;
 
-    // If auto-finalize is true, we can exit early. Note that anyone can trigger
-    // an auto-finalize, even if they are not the marked resolver.
+    let (is_finalized, now) = ctx.accounts.market.is_finalized_and_ts()?;
+
+    // If finalized, we can exit early.
+    //
+    // Note that anyone can trigger an auto-finalize, even if they are not the
+    // marked resolver.
     if is_finalized {
         return Ok(());
     }
 
-    // If not finalized, we can set updates if we are past the expiry timestamp.
-    // At this point we should check that the resolver is the correct one.
-    ctx.accounts.can_update(now, outcome)?;
-    // ctx.accounts.market.can_update(ctx.accounts.resolver.key, now, outcome)?;
+    // Check that the resolver is the correct one.
+    ctx.accounts.verify_resolver()?;
+
+    // Verify the outcome transition.
+    let outcome_ts = ctx.accounts.verify_transition(now, outcome)?;
 
     let market = &mut ctx.accounts.market;
-    if outcome == Outcome::Open {
-        market.outcome_ts = 0;
-    } else {
-        market.outcome_ts = now;
-    }
+
+    market.outcome_ts = outcome_ts;
     market.outcome = outcome;
 
     Ok(())

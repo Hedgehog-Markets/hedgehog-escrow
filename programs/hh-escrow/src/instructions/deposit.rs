@@ -1,12 +1,11 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::Token;
-use solana_program::entrypoint::ProgramResult;
 
 use common::traits::KeyRef;
 
 use crate::error::ErrorCode;
 use crate::state::{Market, UserPosition};
-use crate::utils::non_signer_transfer;
+use crate::utils;
 
 /// Parameters for the [Deposit] instruction.
 #[derive(Clone, AnchorDeserialize, AnchorSerialize)]
@@ -24,8 +23,6 @@ pub struct DepositParams {
 #[derive(Accounts)]
 #[instruction(params: DepositParams)]
 pub struct Deposit<'info> {
-    /// The user depositing into the market.
-    pub user: Signer<'info>,
     /// The market to deposit into.
     #[account(
         mut,
@@ -33,120 +30,116 @@ pub struct Deposit<'info> {
         has_one = no_token_account @ ErrorCode::IncorrectNoEscrow,
     )]
     pub market: Account<'info, Market>,
-    /// Escrow for tokens on the yes side of the market.
-    /// 
-    /// CHECK: We do not read any data from this account. The correctness of the
-    /// account is checked by the constraint on the market account above. Writes
-    /// only occur via the token program, which performs necessary checks on
-    /// sufficient balance and matching token mints.
-    #[account(mut)]
-    pub yes_token_account: UncheckedAccount<'info>,
-    /// Escrow for tokens on the no side of the market.
-    /// 
-    /// CHECK: We do not read any data from this account. The correctness of the
-    /// account is checked by the constraint on the market account above. Writes
-    /// only occur via the token program, which performs necessary checks on
-    /// sufficient balance and matching token mints.
-    #[account(mut)]
-    pub no_token_account: UncheckedAccount<'info>,
-    /// The user's token account.
-    /// 
-    /// CHECK: We do not read any data from this account. Writes only occur via
-    /// the token program, which performs necessary checks on sufficient balance
-    /// and matching token mints.
-    #[account(mut)]
-    pub user_token_account: UncheckedAccount<'info>,
+    /// The user depositing into the market.
+    pub user: Signer<'info>,
     /// The [UserPosition] account for this user and market.
     #[account(mut, seeds = [b"user", user.key_ref().as_ref(), market.key_ref().as_ref()], bump)]
     pub user_position: Account<'info, UserPosition>,
+    /// The user's token account.
+    ///
+    /// CHECK: Reads and writes only occur via the token program, which
+    /// performs necessary checks.
+    #[account(mut)]
+    pub user_token_account: UncheckedAccount<'info>,
+    /// Escrow for tokens on the yes side of the market.
+    ///
+    /// CHECK: Reads and writes only occur via the token program, which
+    /// performs necessary checks.
+    #[account(mut, address = market.yes_token_account @ ErrorCode::IncorrectYesEscrow)]
+    pub yes_token_account: UncheckedAccount<'info>,
+    /// Escrow for tokens on the no side of the market.
+    ///
+    /// CHECK: Reads and writes only occur via the token program, which
+    /// performs necessary checks.
+    #[account(mut, address = market.no_token_account @ ErrorCode::IncorrectNoEscrow)]
+    pub no_token_account: UncheckedAccount<'info>,
+
     /// The SPL token program.
     pub token_program: Program<'info, Token>,
 }
 
 impl Deposit<'_> {
-    pub fn can_deposit(
+    pub fn verify_deposit(
         &mut self,
-        yes_amount: u64,
-        no_amount: u64,
+        yes_deposit: u64,
+        no_deposit: u64,
         allow_partial: bool,
     ) -> Result<(u64, u64)> {
-        let now = Clock::get()?.unix_timestamp as u64;
-        if self.market.close_ts <= now {
+        if self.market.close_ts <= utils::unix_timestamp()? {
             return Err(error!(ErrorCode::MarketClosed));
         }
+        self.market.finalize()?;
 
-        self.market.set_and_check_finalize(now)?;
-
-        // These subtractions should be safe.
-        let yes_left = self
+        let yes_remaining = self
             .market
             .yes_amount
             .checked_sub(self.market.yes_filled)
-            .ok_or_else(|| error!(ErrorCode::Overflow))?;
-        if yes_left < yes_amount && !allow_partial {
+            .ok_or_else(|| error!(ErrorCode::CalculationFailure))?;
+
+        if yes_remaining < yes_deposit && !allow_partial {
             return Err(error!(ErrorCode::OverAllowedAmount));
         }
 
-        let no_left = self
+        let no_remaining = self
             .market
             .no_amount
             .checked_sub(self.market.no_filled)
-            .ok_or_else(|| error!(ErrorCode::Overflow))?;
-        if no_left < no_amount && !allow_partial {
+            .ok_or_else(|| error!(ErrorCode::CalculationFailure))?;
+
+        if no_remaining < no_deposit && !allow_partial {
             return Err(error!(ErrorCode::OverAllowedAmount));
         }
 
-        Ok((yes_left.min(yes_amount), no_left.min(no_amount)))
+        Ok((yes_remaining.min(yes_deposit), no_remaining.min(no_deposit)))
     }
 }
 
-pub fn handler(ctx: Context<Deposit>, params: DepositParams) -> ProgramResult {
+pub fn handler(ctx: Context<Deposit>, params: DepositParams) -> Result<()> {
     let DepositParams {
         yes_amount,
         no_amount,
         allow_partial,
     } = params;
 
-    let (yes_to_deposit, no_to_deposit) =
+    let (yes_deposit, no_deposit) =
         ctx.accounts
-            .can_deposit(yes_amount, no_amount, allow_partial)?;
+            .verify_deposit(yes_amount, no_amount, allow_partial)?;
 
-    // Update the state.
     let user_position = &mut ctx.accounts.user_position;
     let market = &mut ctx.accounts.market;
 
-    // All of these additions should be safe.
+    // Update state.
     user_position.yes_amount = user_position
         .yes_amount
-        .checked_add(yes_to_deposit)
-        .ok_or_else(|| error!(ErrorCode::Overflow))?;
+        .checked_add(yes_deposit)
+        .ok_or_else(|| error!(ErrorCode::CalculationFailure))?;
     user_position.no_amount = user_position
         .no_amount
-        .checked_add(no_to_deposit)
-        .ok_or_else(|| error!(ErrorCode::Overflow))?;
+        .checked_add(no_deposit)
+        .ok_or_else(|| error!(ErrorCode::CalculationFailure))?;
     market.yes_filled = market
         .yes_filled
-        .checked_add(yes_to_deposit)
-        .ok_or_else(|| error!(ErrorCode::Overflow))?;
+        .checked_add(yes_deposit)
+        .ok_or_else(|| error!(ErrorCode::CalculationFailure))?;
     market.no_filled = market
         .no_filled
-        .checked_add(no_to_deposit)
-        .ok_or_else(|| error!(ErrorCode::Overflow))?;
+        .checked_add(no_deposit)
+        .ok_or_else(|| error!(ErrorCode::CalculationFailure))?;
 
     // Perform the transfers.
-    non_signer_transfer(
+    utils::non_signer_transfer(
         &ctx.accounts.token_program,
         &ctx.accounts.user_token_account,
         &ctx.accounts.yes_token_account,
         &ctx.accounts.user,
-        yes_to_deposit,
+        yes_deposit,
     )?;
-    non_signer_transfer(
+    utils::non_signer_transfer(
         &ctx.accounts.token_program,
         &ctx.accounts.user_token_account,
         &ctx.accounts.no_token_account,
         &ctx.accounts.user,
-        no_to_deposit,
+        no_deposit,
     )?;
 
     Ok(())

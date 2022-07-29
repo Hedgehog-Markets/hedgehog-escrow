@@ -1,8 +1,8 @@
 use anchor_lang::prelude::*;
 
 /// A possible market outcome.
-#[repr(u8)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, AnchorDeserialize, AnchorSerialize)]
+#[repr(u8)]
 pub enum Outcome {
     /// The market question has not yet resolved.
     Open,

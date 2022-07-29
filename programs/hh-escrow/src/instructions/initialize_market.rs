@@ -1,11 +1,11 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Mint, Token, TokenAccount};
-use solana_program::entrypoint::ProgramResult;
 
 use common::traits::KeyRef;
 
 use crate::error::ErrorCode;
 use crate::state::{Market, UriResource};
+use crate::utils;
 
 /// Parameters for initializing a market.
 #[derive(Clone, AnchorDeserialize, AnchorSerialize)]
@@ -73,29 +73,7 @@ pub struct InitializeMarket<'info> {
     pub rent: Sysvar<'info, Rent>,
 }
 
-impl InitializeMarket<'_> {
-    pub fn validate_params(&self, yes_amount: u64, no_amount: u64) -> Result<()> {
-        if yes_amount == 0 || no_amount == 0 {
-            return Err(error!(ErrorCode::CannotHaveNonzeroAmounts));
-        }
-
-        Ok(())
-    }
-
-    pub fn validate_ts(&self, close_ts: u64, expiry_ts: u64) -> Result<()> {
-        let now = Clock::get()?.unix_timestamp as u64;
-        if close_ts < now {
-            return Err(error!(ErrorCode::InvalidCloseTimestamp));
-        }
-        if expiry_ts < close_ts {
-            return Err(error!(ErrorCode::InvalidExpiryTimestamp));
-        }
-
-        Ok(())
-    }
-}
-
-pub fn handler(ctx: Context<InitializeMarket>, params: InitializeMarketParams) -> ProgramResult {
+pub fn handler(ctx: Context<InitializeMarket>, params: InitializeMarketParams) -> Result<()> {
     let InitializeMarketParams {
         close_ts,
         expiry_ts,
@@ -106,14 +84,25 @@ pub fn handler(ctx: Context<InitializeMarket>, params: InitializeMarketParams) -
         resolver,
     } = params;
 
-    // Exit early if timestamps or parameters are invalid.
-    ctx.accounts.validate_params(yes_amount, no_amount)?;
-    ctx.accounts.validate_ts(close_ts, expiry_ts)?;
+    // Exit early if parameters are invalid.
+    if yes_amount == 0 || no_amount == 0 {
+        return Err(error!(ErrorCode::CannotHaveNonZeroAmounts));
+    }
+    if close_ts < utils::unix_timestamp()? {
+        return Err(error!(ErrorCode::InvalidCloseTimestamp));
+    }
+    if expiry_ts < close_ts {
+        return Err(error!(ErrorCode::InvalidExpiryTimestamp));
+    }
 
     let market = &mut ctx.accounts.market;
 
     // Exit early if info is invalid.
     market.uri = UriResource::validate(&uri)?;
+
+    // Exit early if bump seeds are missing.
+    market.yes_account_bump = get_bump!(ctx, yes_token_account)?;
+    market.no_account_bump = get_bump!(ctx, no_token_account)?;
 
     market.creator = ctx.accounts.creator.key();
     market.resolver = resolver.key();
@@ -126,14 +115,6 @@ pub fn handler(ctx: Context<InitializeMarket>, params: InitializeMarketParams) -
     market.expiry_ts = expiry_ts;
     market.outcome_ts = 0;
     market.resolution_delay = resolution_delay;
-    market.yes_account_bump = *ctx
-        .bumps
-        .get("yes_token_account")
-        .ok_or_else(|| error!(ErrorCode::NonCanonicalBumpSeed))?;
-    market.no_account_bump = *ctx
-        .bumps
-        .get("no_token_account")
-        .ok_or_else(|| error!(ErrorCode::NonCanonicalBumpSeed))?;
 
     Ok(())
 }

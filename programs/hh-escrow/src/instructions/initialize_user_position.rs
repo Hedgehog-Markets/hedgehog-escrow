@@ -1,10 +1,9 @@
 use anchor_lang::prelude::*;
-use solana_program::entrypoint::ProgramResult;
 
 use crate::state::{Market, UserPosition};
 
 /// Initializes a [UserPosition] account for the user.
-/// 
+///
 /// Before initializing, checks if the market requires any state update. If it
 /// should be finalized, then it finalizes the market and exists early.
 #[derive(Accounts)]
@@ -26,7 +25,7 @@ pub struct InitializeUserPosition<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn handler(ctx: Context<InitializeUserPosition>) -> ProgramResult {
+pub fn handler(ctx: Context<InitializeUserPosition>) -> Result<()> {
     let user_position = &mut ctx.accounts.user_position;
     user_position.market = ctx.accounts.market.key();
 
