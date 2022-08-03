@@ -54,10 +54,6 @@ const { verbose, opts, tests } = (() => {
   const { verbose, grep, skipBuild } = program.opts<Opts>();
   const [tests] = program.processedArgs as Args;
 
-  if (tests.length === 0) {
-    tests.push(path.join(PROJECT_DIR, "tests/**/*.spec.ts"));
-  }
-
   return { verbose, opts: { grep, skipBuild }, tests };
 })();
 
@@ -101,7 +97,7 @@ void startValidator(ledger, wallet).then(() => {
     args.push("--testNamePattern", opts.grep);
   }
 
-  args.push("--testMatch", ...tests);
+  args.push("--", ...tests);
 
   spawn(jest, args, {
     stdio: "inherit",

@@ -19,7 +19,7 @@ const U64_MIN = 0n;
 const U64_MAX = 2n ** 64n - 1n;
 
 const pool = new Uint8Array(8);
-const poolView = new DataView(pool, pool.byteOffset, pool.byteLength);
+const poolView = new DataView(pool.buffer, pool.byteOffset, pool.byteLength);
 
 function u64ToBN(n: bigint): BN {
   // Write the bigint to the pool in big-endian format.

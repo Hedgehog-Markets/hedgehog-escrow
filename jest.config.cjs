@@ -5,6 +5,7 @@ const { compilerOptions } = require("./tsconfig.json");
 /** @type {import("@jest/types").Config.InitialOptions} */
 module.exports = {
   verbose: true,
+  forceExit: true,
 
   testEnvironment: "node",
 

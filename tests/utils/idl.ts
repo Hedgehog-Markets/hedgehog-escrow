@@ -1,6 +1,6 @@
 import type { Idl } from "@project-serum/anchor";
 
-type IdlErrorCode = NonNullable<Idl["errors"]>[number];
+export type IdlErrorCode = NonNullable<Idl["errors"]>[number];
 
 type ErrorCode<E extends IdlErrorCode[]> = {
   [K in E[number]["name"]]: (E[number] & { name: K })["code"];

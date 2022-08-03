@@ -1,14 +1,16 @@
 import type { HhEscrow } from "../../target/types/hh_escrow";
-import type { IdlTypes, Program } from "@project-serum/anchor";
+import type { IdlTypes } from "@project-serum/anchor";
+import type { Address } from "../utils";
 
-import * as anchor from "@project-serum/anchor";
-
+import { Program } from "@project-serum/anchor";
 import { Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 
 import {
   BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
-  intoU64BN,
+  ESCROW_PROGRAM_ID,
+  ESCROW_PROGRAM_IDL,
   parseErrorCodes,
+  getAssociatedTokenAddress,
 } from "../utils";
 
 type EscrowTypes = IdlTypes<HhEscrow>;
@@ -19,8 +21,7 @@ export type DepositParams = EscrowTypes["DepositParams"];
 export type UpdateStateParams = EscrowTypes["UpdateStateParams"];
 export type Outcome = EscrowTypes["Outcome"];
 
-export const program: Program<HhEscrow> = anchor.workspace.HhEscrow;
-
+export const program = new Program(ESCROW_PROGRAM_IDL, ESCROW_PROGRAM_ID);
 export const ErrorCode = parseErrorCodes(program.idl.errors);
 
 export const [programData] = PublicKey.findProgramAddressSync(
@@ -34,10 +35,9 @@ export const globalState = (() => {
     program.programId,
   );
 
-  const protocolFeeBps = 100; // 1%.
-
   let _feeWallet = Keypair.generate();
   let _authority = Keypair.generate();
+  let _protocolFeeBps = 100; // 1%.
 
   return {
     get address(): PublicKey {
@@ -51,7 +51,7 @@ export const globalState = (() => {
       return _feeWallet;
     },
     get protocolFeeBps(): number {
-      return protocolFeeBps;
+      return _protocolFeeBps;
     },
 
     async initialize(): Promise<void> {
@@ -67,6 +67,11 @@ export const globalState = (() => {
             `Global state fee wallet is not the expected: ${_feeWallet.publicKey.toBase58()}`,
           );
         }
+        if (state.protocolFeeBps.bps !== _protocolFeeBps) {
+          throw new Error(
+            `Global state protocol fee bps is not the expected: ${_protocolFeeBps}`,
+          );
+        }
         return;
       }
 
@@ -74,7 +79,7 @@ export const globalState = (() => {
         .initializeGlobalState({
           authority: _authority.publicKey,
           feeWallet: _feeWallet.publicKey,
-          protocolFeeBps,
+          protocolFeeBps: _protocolFeeBps,
         })
         .accounts({
           globalState: address,
@@ -87,23 +92,47 @@ export const globalState = (() => {
         .rpc();
     },
 
-    async updateFeeWallet(feeWallet: Keypair): Promise<void> {
+    async update({
+      authority,
+      feeWallet,
+      protocolFeeBps,
+    }: {
+      authority?: Keypair;
+      feeWallet?: Keypair;
+      protocolFeeBps?: number;
+    }): Promise<void> {
       const state = await program.account.globalState.fetch(address);
-      if (!state.feeWallet.equals(feeWallet.publicKey)) {
-        throw new Error(
-          `Failed to update global state fee wallet to ${feeWallet.publicKey.toBase58()}, expected ${state.feeWallet.toBase58()}`,
-        );
+
+      if (authority) {
+        if (!state.authority.equals(authority.publicKey)) {
+          throw new Error(
+            `Failed to update global state authority to ${authority.publicKey.toBase58()}, expected ${state.authority.toBase58()}`,
+          );
+        }
+        _authority = authority;
       }
-      _feeWallet = feeWallet;
+
+      if (feeWallet) {
+        if (!state.feeWallet.equals(feeWallet.publicKey)) {
+          throw new Error(
+            `Failed to update global state fee wallet to ${feeWallet.publicKey.toBase58()}, expected ${state.feeWallet.toBase58()}`,
+          );
+        }
+        _feeWallet = feeWallet;
+      }
+
+      if (protocolFeeBps !== undefined) {
+        if (state.protocolFeeBps.bps !== protocolFeeBps) {
+          throw new Error(
+            `Failed to update global state protocol fee bps to ${protocolFeeBps}, expected ${state.protocolFeeBps.bps}`,
+          );
+        }
+        _protocolFeeBps = protocolFeeBps;
+      }
     },
-    async updateAuthority(authority: Keypair): Promise<void> {
-      const state = await program.account.globalState.fetch(address);
-      if (!state.authority.equals(authority.publicKey)) {
-        throw new Error(
-          `Failed to update global state authority to ${authority.publicKey.toBase58()}, expected ${state.authority.toBase58()}`,
-        );
-      }
-      _authority = authority;
+
+    getFeeAccountFor(mint: Address): PublicKey {
+      return getAssociatedTokenAddress(mint, _feeWallet.publicKey);
     },
   };
 })();
