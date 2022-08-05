@@ -1,6 +1,6 @@
 import type { HhEscrow } from "../../target/types/hh_escrow";
 import type { IdlTypes } from "@project-serum/anchor";
-import type { Address } from "../utils";
+import { Address, translateAddress } from "../utils";
 
 import { Program } from "@project-serum/anchor";
 import { Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
@@ -143,4 +143,55 @@ export const globalState = (() => {
 export function interpretMarketResource({ len, uri }: UriResource): string {
   const buf = Buffer.from(uri).subarray(0, len);
   return buf.toString("utf8");
+}
+
+/**
+ * Gets the address of the authority account for a given market.
+ */
+export function getAuthorityAddress(market: Address): PublicKey {
+  const [authority] = PublicKey.findProgramAddressSync(
+    [Buffer.from("authority"), translateAddress(market).toBuffer()],
+    program.programId,
+  );
+  return authority;
+}
+
+/**
+ * Gets the address of the yes token account for a given market.
+ */
+export function getYesTokenAccountAddress(market: Address): PublicKey {
+  const [authority] = PublicKey.findProgramAddressSync(
+    [Buffer.from("yes"), translateAddress(market).toBuffer()],
+    program.programId,
+  );
+  return authority;
+}
+
+/**
+ * Gets the address of the no token account for a given market.
+ */
+export function getNoTokenAccountAddress(market: Address): PublicKey {
+  const [authority] = PublicKey.findProgramAddressSync(
+    [Buffer.from("no"), translateAddress(market).toBuffer()],
+    program.programId,
+  );
+  return authority;
+}
+
+/**
+ * Gets the address of the user position account for a given user and market.
+ */
+export function getUserPositionAddress(
+  user: Address,
+  market: Address,
+): PublicKey {
+  const [userPosition] = PublicKey.findProgramAddressSync(
+    [
+      Buffer.from("user"),
+      translateAddress(user).toBuffer(),
+      translateAddress(market).toBuffer(),
+    ],
+    program.programId,
+  );
+  return userPosition;
 }

@@ -1,30 +1,7 @@
-// Because these tests require the presence of program data, they should be run
-// using a separate test validator (`anchor test` injects the program directly
-// instead of deploying, and hence does not initialize program data).
-//
-// Because of this, these tests require a different set up. To run these tests:
-//
-// 1. Clear any existing ledger (usually located in `test-ledger`)
-// 2. Start a local validator with `$ solana-test-validator`.
-// 3. Set the solana cluster to localnet with `solana config set --url
-//    [validator url]`.
-// 4. Run `anchor run pre_test_deploy && anchor test --skip-deploy --skip-build
-//    --skip-local-validator [filter]`.
-// 5. Shut down the validator once tests are complete.
-
-import type { HhEscrow } from "../../target/types/hh_escrow";
 import type { InitializeMarketParams } from "./utils";
 
-import * as anchor from "@project-serum/anchor";
-
-import { Program, LangErrorCode, AnchorError } from "@project-serum/anchor";
-import {
-  Keypair,
-  PublicKey,
-  SystemProgram,
-  Transaction,
-  TransactionInstruction,
-} from "@solana/web3.js";
+import { LangErrorCode } from "@project-serum/anchor";
+import { Keypair, PublicKey } from "@solana/web3.js";
 
 import {
   intoU64BN,
@@ -37,40 +14,30 @@ import {
   __throw,
 } from "../utils";
 
-import { ErrorCode, program, globalState } from "./utils";
+import {
+  ErrorCode,
+  program,
+  globalState,
+  getAuthorityAddress,
+  getYesTokenAccountAddress,
+  getNoTokenAccountAddress,
+  getUserPositionAddress,
+} from "./utils";
 
 const YES_AMOUNT = 1_000_000;
 const NO_AMOUNT = 2_000_000;
 
-// These test shouldn't be flaky since they hit failures that can be
-// consistently set without worrying about the clock.
-describe("claim failure tests", () => {
+describe("claim", () => {
   const market = Keypair.generate();
   const mint = Keypair.generate();
   const user = Keypair.generate();
   const userTokenAccount = Keypair.generate();
   const resolver = Keypair.generate();
 
-  const [authority] = PublicKey.findProgramAddressSync(
-    [Buffer.from("authority"), market.publicKey.toBuffer()],
-    program.programId,
-  );
-  const [yesTokenAccount] = PublicKey.findProgramAddressSync(
-    [Buffer.from("yes"), market.publicKey.toBuffer()],
-    program.programId,
-  );
-  const [noTokenAccount] = PublicKey.findProgramAddressSync(
-    [Buffer.from("no"), market.publicKey.toBuffer()],
-    program.programId,
-  );
-  const [userPosition] = PublicKey.findProgramAddressSync(
-    [
-      Buffer.from("user"),
-      user.publicKey.toBuffer(),
-      market.publicKey.toBuffer(),
-    ],
-    program.programId,
-  );
+  const authority = getAuthorityAddress(market);
+  const yesTokenAccount = getYesTokenAccountAddress(market);
+  const noTokenAccount = getNoTokenAccountAddress(market);
+  const userPosition = getUserPositionAddress(user, market);
 
   let feeAccount: PublicKey;
 
@@ -157,7 +124,7 @@ describe("claim failure tests", () => {
 
   //////////////////////////////////////////////////////////////////////////////
 
-  it("fails to claim if the provided global state is incorrect", async () => {
+  it("fails if the global state address is incorrect", async () => {
     expect.assertions(1);
 
     // This is painful because anchor attempts to deserialize the account before checking the constraints.
@@ -175,10 +142,7 @@ describe("claim failure tests", () => {
 
     await expect(
       claim()
-        .accounts({
-          globalState: wrongGlobalState,
-          feeAccount,
-        })
+        .accounts({ globalState: wrongGlobalState, feeAccount })
         .preInstructions([
           createAssociatedTokenAccountInstruction({
             account: feeAccount,
@@ -188,269 +152,164 @@ describe("claim failure tests", () => {
         ])
         .signers([user])
         .rpc(),
-    ).rejects.toThrowAnchorError(LangErrorCode.ConstraintSeeds);
+    ).rejects.toThrowProgramError(LangErrorCode.ConstraintSeeds);
   });
 
-  // it("fails to claim if the provided fee account is not owned by the fee wallet", async () => {
-  //   expect.assertions(1);
+  it("fails if the fee account is has the wrong owner", async () => {
+    expect.assertions(1);
 
-  //   const otherAccount = Keypair.generate();
-  //   const otherAccountIxs = await createInitAccountInstructions({
-  //     account: otherAccount.publicKey,
-  //     mint: mint.publicKey,
-  //     user: Keypair.generate().publicKey,
-  //     connection: provider.connection,
-  //     payer: provider.wallet.publicKey,
-  //   });
+    const wrongFeeAccount = Keypair.generate();
+    const wrongFeeWallet = Keypair.generate();
 
-  //   await expect(
-  //     program.methods
-  //       .claim()
-  //       .accounts({
-  //         globalState,
-  //         feeAccount: otherAccount.publicKey,
-  //         userTokenAccount: userTokenAccount.publicKey,
-  //         yesTokenAccount,
-  //         noTokenAccount,
-  //         userPosition,
-  //         market: market.publicKey,
-  //         authority,
-  //         user: user.publicKey,
-  //       })
-  //       .preInstructions([...otherAccountIxs])
-  //       .signers([user, otherAccount])
-  //       .rpc(),
-  //   ).rejects.toThrowAnchorError(ErrorCode.AccountNotOwnedByFeeWallet);
-  // });
+    const preIxs = await createInitAccountInstructions({
+      account: wrongFeeAccount,
+      mint,
+      user: wrongFeeWallet,
+    });
 
-  // it("fails to claim if the provided fee account is not the associated token account", async () => {
-  //   expect.assertions(1);
+    await expect(
+      claim()
+        .accounts({ feeAccount: wrongFeeAccount.publicKey })
+        .preInstructions(preIxs)
+        .signers([user, wrongFeeAccount])
+        .rpc(),
+    ).rejects.toThrowProgramError(LangErrorCode.ConstraintTokenOwner);
+  });
 
-  //   const otherAccount = Keypair.generate();
-  //   const otherAccountIxs = await createInitAccountInstructions({
-  //     account: otherAccount.publicKey,
-  //     mint: mint.publicKey,
-  //     user: feeWallet.publicKey,
-  //     connection: provider.connection,
-  //     payer: provider.wallet.publicKey,
-  //   });
+  it("fails if the fee account is not the associated token account for the fee wallet and token mint", async () => {
+    expect.assertions(1);
 
-  //   await expect(
-  //     program.methods
-  //       .claim()
-  //       .accounts({
-  //         globalState,
-  //         feeAccount: otherAccount.publicKey,
-  //         userTokenAccount: userTokenAccount.publicKey,
-  //         yesTokenAccount,
-  //         noTokenAccount,
-  //         userPosition,
-  //         market: market.publicKey,
-  //         authority,
-  //         user: user.publicKey,
-  //       })
-  //       .preInstructions([...otherAccountIxs])
-  //       .signers([user, otherAccount])
-  //       .rpc(),
-  //   ).rejects.toThrowProgramError(ErrorCode.AssociatedTokenAccountRequired);
-  // });
+    const wrongFeeAccount = Keypair.generate();
 
-  // it("fails to claim if the user provides the yes/no token account", async () => {
-  //   expect.assertions(2);
+    const preIxs = await createInitAccountInstructions({
+      account: wrongFeeAccount,
+      mint,
+      user: globalState.feeWallet,
+    });
 
-  //   await expect(
-  //     program.methods
-  //       .claim()
-  //       .accounts({
-  //         globalState,
-  //         feeAccount,
-  //         userTokenAccount: yesTokenAccount,
-  //         yesTokenAccount,
-  //         noTokenAccount,
-  //         userPosition,
-  //         market: market.publicKey,
-  //         authority,
-  //         user: user.publicKey,
-  //       })
-  //       .signers([user])
-  //       .rpc(),
-  //   ).rejects.toThrowAnchorError(ErrorCode.UserAccountCannotBeMarketAccount);
+    await expect(
+      claim()
+        .accounts({ feeAccount: wrongFeeAccount.publicKey })
+        .preInstructions(preIxs)
+        .signers([user, wrongFeeAccount])
+        .rpc(),
+    ).rejects.toThrowProgramError(LangErrorCode.ConstraintAssociated);
+  });
 
-  //   await expect(
-  //     program.methods
-  //       .claim()
-  //       .accounts({
-  //         globalState,
-  //         feeAccount,
-  //         userTokenAccount: noTokenAccount,
-  //         yesTokenAccount,
-  //         noTokenAccount,
-  //         userPosition,
-  //         market: market.publicKey,
-  //         authority,
-  //         user: user.publicKey,
-  //       })
-  //       .signers([user])
-  //       .rpc(),
-  //   ).rejects.toThrowAnchorError(ErrorCode.UserAccountCannotBeMarketAccount);
-  // });
+  it("fails if the user provides the yes token account", async () => {
+    expect.assertions(1);
 
-  // it("fails to claim if the user provides a token account they do not own", async () => {
-  //   expect.assertions(1);
+    await expect(
+      claim()
+        .accounts({ userTokenAccount: yesTokenAccount })
+        .signers([user])
+        .rpc(),
+    ).rejects.toThrowProgramError(ErrorCode.UserAccountCannotBeMarketAccount);
+  });
 
-  //   const otherAccount = Keypair.generate();
-  //   const otherAccountIxs = await createInitAccountInstructions({
-  //     account: otherAccount.publicKey,
-  //     mint: mint.publicKey,
-  //     user: feeWallet.publicKey,
-  //     connection: provider.connection,
-  //     payer: provider.wallet.publicKey,
-  //   });
+  it("fails if the user provides the no token account", async () => {
+    expect.assertions(1);
 
-  //   await expect(
-  //     program.methods
-  //       .claim()
-  //       .accounts({
-  //         globalState,
-  //         feeAccount,
-  //         userTokenAccount: otherAccount.publicKey,
-  //         yesTokenAccount,
-  //         noTokenAccount,
-  //         userPosition,
-  //         market: market.publicKey,
-  //         authority,
-  //         user: user.publicKey,
-  //       })
-  //       .preInstructions([...otherAccountIxs])
-  //       .signers([user, otherAccount])
-  //       .rpc(),
-  //   ).rejects.toThrowAnchorError(ErrorCode.UserAccountIncorrectOwner);
-  // });
+    await expect(
+      claim()
+        .accounts({ userTokenAccount: noTokenAccount })
+        .signers([user])
+        .rpc(),
+    ).rejects.toThrowProgramError(ErrorCode.UserAccountCannotBeMarketAccount);
+  });
 
-  // it("fails to claim if the user position is incorrect", async () => {
-  //   expect.assertions(1);
+  it("fails if the user provides a token account they do not own", async () => {
+    expect.assertions(1);
 
-  //   const otherUser = Keypair.generate();
-  //   const [otherUserPosition] = PublicKey.findProgramAddressSync(
-  //     [
-  //       Buffer.from("user"),
-  //       otherUser.publicKey.toBuffer(),
-  //       market.publicKey.toBuffer(),
-  //     ],
-  //     program.programId,
-  //   );
-  //   const otherUserPositionIx = await program.methods
-  //     .initializeUserPosition()
-  //     .accounts({
-  //       user: otherUser.publicKey,
-  //       market: market.publicKey,
-  //       userPosition: otherUserPosition,
-  //     })
-  //     .instruction();
+    const wrongUserTokenAccount = Keypair.generate();
+    const wrongUser = Keypair.generate();
 
-  //   await expect(
-  //     program.methods
-  //       .claim()
-  //       .accounts({
-  //         globalState,
-  //         feeAccount,
-  //         userTokenAccount: userTokenAccount.publicKey,
-  //         yesTokenAccount,
-  //         noTokenAccount,
-  //         userPosition: otherUserPosition,
-  //         market: market.publicKey,
-  //         authority,
-  //         user: user.publicKey,
-  //       })
-  //       .preInstructions([otherUserPositionIx])
-  //       .signers([user, otherUser])
-  //       .rpc(),
-  //   ).rejects.toThrowAnchorError(LangErrorCode.ConstraintSeeds);
-  // });
+    const preIxs = await createInitAccountInstructions({
+      account: wrongUserTokenAccount,
+      mint,
+      user: wrongUser,
+    });
 
-  // it("fails to claim if the yes token account provided is incorrect", async () => {
-  //   expect.assertions(1);
+    await expect(
+      claim()
+        .accounts({ userTokenAccount: wrongUserTokenAccount.publicKey })
+        .preInstructions(preIxs)
+        .signers([user, wrongUserTokenAccount])
+        .rpc(),
+    ).rejects.toThrowProgramError(ErrorCode.UserAccountIncorrectOwner);
+  });
 
-  //   const otherAccount = Keypair.generate();
-  //   const otherAccountIxs = await createInitAccountInstructions({
-  //     account: otherAccount.publicKey,
-  //     mint: mint.publicKey,
-  //     user: Keypair.generate().publicKey,
-  //     connection: provider.connection,
-  //     payer: provider.wallet.publicKey,
-  //   });
+  it("fails if the user position is incorrect", async () => {
+    expect.assertions(1);
 
-  //   await expect(
-  //     program.methods
-  //       .claim()
-  //       .accounts({
-  //         globalState,
-  //         feeAccount,
-  //         userTokenAccount: userTokenAccount.publicKey,
-  //         yesTokenAccount: otherAccount.publicKey,
-  //         noTokenAccount,
-  //         userPosition,
-  //         market: market.publicKey,
-  //         authority,
-  //         user: user.publicKey,
-  //       })
-  //       .preInstructions([...otherAccountIxs])
-  //       .signers([user, otherAccount])
-  //       .rpc(),
-  //   ).rejects.toThrowAnchorError(ErrorCode.IncorrectYesEscrow);
-  // });
+    const wrongUser = Keypair.generate();
+    const wrongUserPosition = getUserPositionAddress(wrongUser, market);
 
-  // it("fails to claim if the no token account provided is incorrect", async () => {
-  //   expect.assertions(1);
+    const preIxs = [
+      await program.methods
+        .initializeUserPosition()
+        .accounts({
+          user: wrongUser.publicKey,
+          market: market.publicKey,
+          userPosition: wrongUserPosition,
+        })
+        .instruction(),
+    ];
 
-  //   const otherAccount = Keypair.generate();
-  //   const otherAccountIxs = await createInitAccountInstructions({
-  //     account: otherAccount.publicKey,
-  //     mint: mint.publicKey,
-  //     user: Keypair.generate().publicKey,
-  //     connection: provider.connection,
-  //     payer: provider.wallet.publicKey,
-  //   });
+    await expect(
+      claim()
+        .accounts({ userPosition: wrongUserPosition })
+        .preInstructions(preIxs)
+        .signers([user, wrongUser])
+        .rpc(),
+    ).rejects.toThrowProgramError(LangErrorCode.ConstraintSeeds);
+  });
 
-  //   await expect(
-  //     program.methods
-  //       .claim()
-  //       .accounts({
-  //         globalState,
-  //         feeAccount,
-  //         userTokenAccount: userTokenAccount.publicKey,
-  //         yesTokenAccount,
-  //         noTokenAccount: otherAccount.publicKey,
-  //         userPosition,
-  //         market: market.publicKey,
-  //         authority,
-  //         user: user.publicKey,
-  //       })
-  //       .preInstructions([...otherAccountIxs])
-  //       .signers([user, otherAccount])
-  //       .rpc(),
-  //   ).rejects.toThrowAnchorError(ErrorCode.IncorrectNoEscrow);
-  // });
+  it("fails if the yes token account provided is incorrect", async () => {
+    expect.assertions(1);
 
-  // it("fails to claim if the market has not finalized", async () => {
-  //   expect.assertions(1);
+    const wrongTokenAccount = Keypair.generate();
 
-  //   await expect(
-  //     program.methods
-  //       .claim()
-  //       .accounts({
-  //         globalState,
-  //         feeAccount,
-  //         userTokenAccount: userTokenAccount.publicKey,
-  //         yesTokenAccount,
-  //         noTokenAccount,
-  //         userPosition,
-  //         market: market.publicKey,
-  //         authority,
-  //         user: user.publicKey,
-  //       })
-  //       .signers([user])
-  //       .rpc(),
-  //   ).rejects.toThrowProgramError(ErrorCode.NotFinalized);
-  // });
+    const preIxs = await createInitAccountInstructions({
+      account: wrongTokenAccount.publicKey,
+      mint,
+      user,
+    });
+
+    await expect(
+      claim()
+        .accounts({ yesTokenAccount: wrongTokenAccount.publicKey })
+        .preInstructions(preIxs)
+        .signers([user, wrongTokenAccount])
+        .rpc(),
+    ).rejects.toThrowProgramError(ErrorCode.IncorrectYesEscrow);
+  });
+
+  it("fails if the no token account provided is incorrect", async () => {
+    expect.assertions(1);
+
+    const wrongTokenAccount = Keypair.generate();
+
+    const preIxs = await createInitAccountInstructions({
+      account: wrongTokenAccount.publicKey,
+      mint,
+      user,
+    });
+
+    await expect(
+      claim()
+        .accounts({ noTokenAccount: wrongTokenAccount.publicKey })
+        .preInstructions(preIxs)
+        .signers([user, wrongTokenAccount])
+        .rpc(),
+    ).rejects.toThrowProgramError(ErrorCode.IncorrectNoEscrow);
+  });
+
+  it("fails if the market is not finalized", async () => {
+    expect.assertions(1);
+
+    await expect(claim().signers([user]).rpc()).rejects.toThrowProgramError(
+      ErrorCode.NotFinalized,
+    );
+  });
 });
