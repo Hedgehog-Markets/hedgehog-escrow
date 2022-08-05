@@ -35,8 +35,8 @@ describe("claim", () => {
   const resolver = Keypair.generate();
 
   const authority = getAuthorityAddress(market);
-  const yesTokenAccount = getYesTokenAccountAddress(market);
-  const noTokenAccount = getNoTokenAccountAddress(market);
+  const [yesTokenAccount] = getYesTokenAccountAddress(market);
+  const [noTokenAccount] = getNoTokenAccountAddress(market);
   const userPosition = getUserPositionAddress(user, market);
 
   let feeWallet: PublicKey, feeAccount: PublicKey;

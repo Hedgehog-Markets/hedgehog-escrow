@@ -1,7 +1,7 @@
 import type { DepositParams, InitializeMarketParams } from "./utils";
 
 import { LangErrorCode } from "@project-serum/anchor";
-import { Keypair, PublicKey } from "@solana/web3.js";
+import { Keypair } from "@solana/web3.js";
 
 import {
   spl,
@@ -18,7 +18,6 @@ import {
 import {
   ErrorCode,
   program,
-  globalState,
   getAuthorityAddress,
   getYesTokenAccountAddress,
   getNoTokenAccountAddress,
@@ -39,8 +38,8 @@ describe("deposit", () => {
   const resolver = Keypair.generate();
 
   const authority = getAuthorityAddress(market);
-  const yesTokenAccount = getYesTokenAccountAddress(market);
-  const noTokenAccount = getNoTokenAccountAddress(market);
+  const [yesTokenAccount] = getYesTokenAccountAddress(market);
+  const [noTokenAccount] = getNoTokenAccountAddress(market);
   const userPosition = getUserPositionAddress(user, market);
 
   ///////////////////////////////////////////////////////////////////////////////
@@ -73,9 +72,6 @@ describe("deposit", () => {
   //////////////////////////////////////////////////////////////////////////////
 
   beforeAll(async () => {
-    // Ensure global state is initialized and matches expected state.
-    await globalState.initialize();
-
     await sendTx(
       [
         ...(await createInitMintInstructions({
@@ -289,37 +285,4 @@ describe("deposit", () => {
     expect(yesFilled).toEqualBN(YES_AMOUNT);
     expect(noFilled).toEqualBN(NO_AMOUNT);
   });
-
-  // it("successfully fills if the amount to deposit exceeds the market amount, and allow_partial is true", async () => {
-  //   expect.assertions(4);
-
-  //   const newDepositParams = {
-  //     yesAmount: intoU64BN(5_000_000),
-  //     noAmount: intoU64BN(5_000_000),
-  //     allowPartial: true,
-  //   };
-
-  //   await program.methods
-  //     .deposit(newDepositParams)
-  //     .accounts({
-  //       user: user.publicKey,
-  //       market: market.publicKey,
-  //       yesTokenAccount,
-  //       noTokenAccount,
-  //       userTokenAccount: userTokenAccount.publicKey,
-  //       userPosition,
-  //     })
-  //     .signers([user])
-  //     .rpc();
-
-  //   const userPositionAccount = await program.account.userPosition.fetch(
-  //     userPosition,
-  //   );
-  //   const marketAccount = await program.account.market.fetch(market.publicKey);
-
-  //   expect(userPositionAccount.yesAmount).toEqualBN(YES_AMOUNT);
-  //   expect(userPositionAccount.noAmount).toEqualBN(NO_AMOUNT);
-  //   expect(marketAccount.yesFilled).toEqualBN(YES_AMOUNT);
-  //   expect(marketAccount.noFilled).toEqualBN(NO_AMOUNT);
-  // });
 });

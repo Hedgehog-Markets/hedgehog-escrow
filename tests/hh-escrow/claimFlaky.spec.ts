@@ -135,8 +135,8 @@ describe.skip("claim (clock-dependent)", () => {
     market = Keypair.generate();
 
     authority = getAuthorityAddress(market);
-    yesTokenAccount = getYesTokenAccountAddress(market);
-    noTokenAccount = getNoTokenAccountAddress(market);
+    [yesTokenAccount] = getYesTokenAccountAddress(market);
+    [noTokenAccount] = getNoTokenAccountAddress(market);
     userPosition = getUserPositionAddress(user, market);
 
     // Top off the user's token account before each test.
