@@ -1,1 +1,3 @@
+node_modules/
 target/types/
+jest.config.cjs

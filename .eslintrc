@@ -16,6 +16,17 @@
     "node": true
   },
   "plugins": ["@typescript-eslint"],
+  "overrides": [
+    {
+      "files": ["tests/**/*.spec.ts"],
+      "plugins": ["jest"],
+      "extends": ["plugin:jest/recommended", "plugin:jest/style"],
+      "rules": {
+        "jest/prefer-expect-assertions": "warn",
+        "jest/no-disabled-tests": "off"
+      }
+    }
+  ],
   "rules": {
     "no-unused-vars": "off",
     "@typescript-eslint/no-unused-vars": [
@@ -26,13 +37,13 @@
         "caughtErrorsIgnorePattern": "^_"
       }
     ],
-    "@typescript-eslint/no-floating-promises": "warn",
     "@typescript-eslint/no-inferrable-types": [
       "warn",
       {
         "ignoreParameters": true,
         "ignoreProperties": true
       }
-    ]
+    ],
+    "@typescript-eslint/no-floating-promises": "warn"
   }
 }
