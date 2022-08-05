@@ -19,7 +19,6 @@ import {
   getAuthorityAddress,
   getYesTokenAccountAddress,
   getNoTokenAccountAddress,
-  getUserPositionAddress,
 } from "./utils";
 
 const YES_AMOUNT = 1_000_000n;
@@ -27,7 +26,6 @@ const NO_AMOUNT = 2_000_000n;
 
 describe("initialize market", () => {
   const mint = Keypair.generate();
-  const user = Keypair.generate();
   const resolver = Keypair.generate();
 
   let market: Keypair,
@@ -35,8 +33,7 @@ describe("initialize market", () => {
     yesTokenAccount: PublicKey,
     yesTokenAccountNonce: number,
     noTokenAccount: PublicKey,
-    noTokenAccountNonce: number,
-    userPosition: PublicKey;
+    noTokenAccountNonce: number;
 
   //////////////////////////////////////////////////////////////////////////////
 
@@ -99,7 +96,6 @@ describe("initialize market", () => {
     authority = getAuthorityAddress(market);
     [yesTokenAccount, yesTokenAccountNonce] = getYesTokenAccountAddress(market);
     [noTokenAccount, noTokenAccountNonce] = getNoTokenAccountAddress(market);
-    userPosition = getUserPositionAddress(user, market);
   });
 
   //////////////////////////////////////////////////////////////////////////////
