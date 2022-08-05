@@ -142,13 +142,16 @@ expect.extend({
       };
     }
 
+    const err = thrown.value;
+    const isAnchorError = err instanceof AnchorError;
+
     let receivedCode: number, receivedProgram: PublicKey | undefined;
-    if (thrown.value instanceof AnchorError) {
-      receivedCode = thrown.value.error.errorCode.number;
-      receivedProgram = thrown.value.program;
+    if (isAnchorError) {
+      receivedCode = err.error.errorCode.number;
+      receivedProgram = err.program;
     } else {
-      receivedCode = thrown.value.code;
-      receivedProgram = thrown.value.program;
+      receivedCode = err.code;
+      receivedProgram = err.program;
     }
 
     const matchesCode = receivedCode === code;
@@ -157,16 +160,30 @@ expect.extend({
           this.utils.matcherHint(matcherName, undefined, undefined, options) +
           "\n\n" +
           `Expected error code to not be ${this.utils.printExpected(code)}`
-      : () =>
-          this.utils.matcherHint(matcherName, undefined, undefined, options) +
-          "\n\n" +
-          this.utils.printDiffOrStringify(
-            code,
-            receivedCode,
-            "Expected error code",
-            "Received error code",
-            this.expand !== false,
+      : () => {
+          const expectedLabel = "Expected error code";
+          const receivedLabel = "Received error code";
+          const printLabel = this.utils.getLabelPrinter(
+            expectedLabel,
+            receivedLabel,
           );
+
+          const expectedLine =
+            printLabel(expectedLabel) + this.utils.EXPECTED_COLOR(code);
+          const receivedLine =
+            printLabel(receivedLabel) +
+            this.utils.RECEIVED_COLOR(
+              isAnchorError
+                ? `${receivedCode} (${err.error.errorCode.code})`
+                : `${receivedCode}`,
+            );
+
+          return (
+            this.utils.matcherHint(matcherName, undefined, undefined, options) +
+            "\n\n" +
+            `${expectedLine}\n${receivedLine}`
+          );
+        };
 
     if (program === undefined) {
       return { pass: matchesCode, message: codeMessage };
