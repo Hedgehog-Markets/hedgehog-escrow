@@ -1,3 +1,5 @@
+import "../provider";
+
 export * from "./accounts";
 export * from "./bigint";
 export * from "./constants";

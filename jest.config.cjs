@@ -7,6 +7,8 @@ module.exports = {
   verbose: true,
   forceExit: true,
 
+  maxWorkers: 1,
+
   testEnvironment: "node",
 
   setupFilesAfterEnv: [
@@ -14,7 +16,7 @@ module.exports = {
     "<rootDir>/tests/matchers.ts",
     "<rootDir>/tests/provider.ts",
   ],
-  testMatch: ["**/tests/*.spec.ts", "**/tests/**/*.spec.ts"],
+  testMatch: ["<rootDir>/tests/**/*.spec.ts"],
 
   // Having problems with ts-jest, so using @swc/jest instead.
   transform: {

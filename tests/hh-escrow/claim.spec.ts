@@ -24,8 +24,8 @@ import {
   getUserPositionAddress,
 } from "./utils";
 
-const YES_AMOUNT = 1_000_000;
-const NO_AMOUNT = 2_000_000;
+const YES_AMOUNT = 1_000_000n;
+const NO_AMOUNT = 2_000_000n;
 
 describe("claim", () => {
   const market = Keypair.generate();
@@ -39,7 +39,7 @@ describe("claim", () => {
   const noTokenAccount = getNoTokenAccountAddress(market);
   const userPosition = getUserPositionAddress(user, market);
 
-  let feeAccount: PublicKey;
+  let feeWallet: PublicKey, feeAccount: PublicKey;
 
   //////////////////////////////////////////////////////////////////////////////
 
@@ -62,7 +62,8 @@ describe("claim", () => {
     // Ensure global state is initialized and matches expected state.
     await globalState.initialize();
 
-    feeAccount = globalState.getFeeAccountFor(mint);
+    feeWallet = await globalState.getFeeWallet();
+    feeAccount = getAssociatedTokenAddress(mint, feeWallet, true);
 
     await sendTx(
       [
@@ -77,7 +78,7 @@ describe("claim", () => {
         })),
         createAssociatedTokenAccountInstruction({
           account: feeAccount,
-          owner: globalState.feeWallet,
+          owner: feeWallet,
           mint,
         }),
       ],
@@ -184,7 +185,7 @@ describe("claim", () => {
     const preIxs = await createInitAccountInstructions({
       account: wrongFeeAccount,
       mint,
-      user: globalState.feeWallet,
+      user: feeWallet,
     });
 
     await expect(
