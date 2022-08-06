@@ -1,4 +1,4 @@
-import { getUserPositionAddress, InitializeMarketParams } from "./utils";
+import type { InitializeMarketParams } from "./utils";
 
 import { Keypair, SystemProgram } from "@solana/web3.js";
 
@@ -14,6 +14,7 @@ import {
   getAuthorityAddress,
   getYesTokenAccountAddress,
   getNoTokenAccountAddress,
+  getUserPositionAddress,
 } from "./utils";
 
 const YES_AMOUNT = 1_000_000n;
