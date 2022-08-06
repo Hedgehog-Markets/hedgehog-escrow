@@ -6,7 +6,7 @@ describe.skip("initialize global state", () => {
   const authority = globalState.authority;
   const feeWallet = Keypair.generate();
 
-  it("fails if the incorrect authority is provided", async () => {
+  it("fails if the upgrade authority is incorrect", async () => {
     expect.assertions(1);
 
     const wrongUgradeAuthority = Keypair.generate();
