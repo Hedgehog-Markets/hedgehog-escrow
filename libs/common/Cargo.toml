@@ -9,7 +9,7 @@ rust-version = "1.59"
 rustversion = "1.0"
 
 anchor-lang = "0.25.0"
-solana-program = "1.10.29"
+solana-program = "1.10"
 
 arrayref = "0.3.6"
 

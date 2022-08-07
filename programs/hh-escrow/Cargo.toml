@@ -23,7 +23,8 @@ common = { path = "../../libs/common" }
 
 anchor-lang = "0.25.0"
 anchor-spl = "0.25.0"
-solana-program = "1.9.13"
+solana-program = "1.10"
+spl-token = { version = "3.3", features = ["no-entrypoint"] }
 spl-associated-token-account = { version = "1.0.5", features = ["no-entrypoint"] }
 
 borsh = { version = "0.9.3", features = ["const-generics"] }

@@ -42,7 +42,7 @@ pub struct Market {
     /// The outcome of the market.
     pub outcome: Outcome,
     /// A flag checking whether the market is finalized.
-    finalized: bool,
+    pub finalized: bool,
     /// The bump seed for the yes token account.
     pub yes_account_bump: u8,
     /// The bump seed for the no token account.

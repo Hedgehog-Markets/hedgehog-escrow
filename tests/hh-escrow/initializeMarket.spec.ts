@@ -153,9 +153,7 @@ describe("initialize market", () => {
         .accounts({ yesTokenAccount: wrongTokenAccount.publicKey })
         .signers([market])
         .rpc(),
-    ).rejects.toThrow(
-      "Cross-program invocation with unauthorized signer or writable account",
-    );
+    ).rejects.toThrowProgramError(LangErrorCode.ConstraintSeeds);
   });
 
   it("fails if the no token account is incorrect", async () => {
@@ -168,9 +166,7 @@ describe("initialize market", () => {
         .accounts({ noTokenAccount: wrongTokenAccount.publicKey })
         .signers([market])
         .rpc(),
-    ).rejects.toThrow(
-      "Cross-program invocation with unauthorized signer or writable account",
-    );
+    ).rejects.toThrowProgramError(LangErrorCode.ConstraintSeeds);
   });
 
   it("fails if URI is too long", async () => {

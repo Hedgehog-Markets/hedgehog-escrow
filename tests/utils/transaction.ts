@@ -11,7 +11,11 @@ import type { IdlErrorCode } from "./idl";
 
 import * as anchor from "@project-serum/anchor";
 
-import { AnchorError, ProgramErrorStack } from "@project-serum/anchor";
+import {
+  AnchorError,
+  LangErrorCode,
+  ProgramErrorStack,
+} from "@project-serum/anchor";
 import { Transaction } from "@solana/web3.js";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -23,78 +27,6 @@ import { __throw } from "./misc";
 import { spl } from "./spl";
 
 import { parseErrorCodes } from "./idl";
-
-export const LangErrorCode = {
-  // Instructions.
-  InstructionMissing: 100,
-  InstructionFallbackNotFound: 101,
-  InstructionDidNotDeserialize: 102,
-  InstructionDidNotSerialize: 103,
-
-  // IDL instructions.
-  IdlInstructionStub: 1000,
-  IdlInstructionInvalidProgram: 1001,
-
-  // Constraints.
-  ConstraintMut: 2000,
-  ConstraintHasOne: 2001,
-  ConstraintSigner: 2002,
-  ConstraintRaw: 2003,
-  ConstraintOwner: 2004,
-  ConstraintRentExempt: 2005,
-  ConstraintSeeds: 2006,
-  ConstraintExecutable: 2007,
-  ConstraintState: 2008,
-  ConstraintAssociated: 2009,
-  ConstraintAssociatedInit: 2010,
-  ConstraintClose: 2011,
-  ConstraintAddress: 2012,
-  ConstraintZero: 2013,
-  ConstraintTokenMint: 2014,
-  ConstraintTokenOwner: 2015,
-  ConstraintMintMintAuthority: 2016,
-  ConstraintMintFreezeAuthority: 2017,
-  ConstraintMintDecimals: 2018,
-  ConstraintSpace: 2019,
-
-  // Require.
-  RequireViolated: 2500,
-  RequireEqViolated: 2501,
-  RequireKeysEqViolated: 2502,
-  RequireNeqViolated: 2503,
-  RequireKeysNeqViolated: 2504,
-  RequireGtViolated: 2505,
-  RequireGteViolated: 2506,
-
-  // Accounts.
-  AccountDiscriminatorAlreadySet: 3000,
-  AccountDiscriminatorNotFound: 3001,
-  AccountDiscriminatorMismatch: 3002,
-  AccountDidNotDeserialize: 3003,
-  AccountDidNotSerialize: 3004,
-  AccountNotEnoughKeys: 3005,
-  AccountNotMutable: 3006,
-  AccountOwnedByWrongProgram: 3007,
-  InvalidProgramId: 3008,
-  InvalidProgramExecutable: 3009,
-  AccountNotSigner: 3010,
-  AccountNotSystemOwned: 3011,
-  AccountNotInitialized: 3012,
-  AccountNotProgramData: 3013,
-  AccountNotAssociatedTokenAccount: 3014,
-  AccountSysvarMismatch: 3015,
-  AccountReallocExceedsLimit: 3016,
-  AccountDuplicateReallocs: 3017,
-
-  // State.
-  StateInvalidAddress: 4000,
-
-  // Miscellaneous
-  DeclaredProgramIdMismatch: 4100,
-
-  // Used for APIs that shouldn't be used anymore.
-  Deprecated: 5000,
-};
 
 type SystemProgramErrors = [
   {
@@ -512,14 +444,6 @@ const anchorErrors = new Map([
   [
     LangErrorCode.AccountSysvarMismatch,
     "The given public key does not match the required sysvar",
-  ],
-  [
-    LangErrorCode.AccountReallocExceedsLimit,
-    "The account reallocation exceeds the MAX_PERMITTED_DATA_INCREASE limit",
-  ],
-  [
-    LangErrorCode.AccountDuplicateReallocs,
-    "The account was duplicated for more than one reallocation",
   ],
 
   // State.
