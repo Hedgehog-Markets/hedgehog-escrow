@@ -44,8 +44,8 @@ pub enum ErrorCode {
     CannotClaim,
     #[msg("Must use the associated token account of the fee wallet to collect fees.")]
     AssociatedTokenAccountRequired,
-    #[msg("Cannot have non-zero amounts.")]
-    CannotHaveNonZeroAmounts,
+    #[msg("Cannot have zero tokens to fill for a side.")]
+    ZeroTokensToFill,
     #[msg("Calculation failed.")]
     CalculationFailure,
     #[msg("Conversion to or from u64 failed.")]

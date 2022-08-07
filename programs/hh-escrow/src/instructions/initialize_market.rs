@@ -86,7 +86,7 @@ pub fn handler(ctx: Context<InitializeMarket>, params: InitializeMarketParams) -
 
     // Exit early if parameters are invalid.
     if yes_amount == 0 || no_amount == 0 {
-        return Err(error!(ErrorCode::CannotHaveNonZeroAmounts));
+        return Err(error!(ErrorCode::ZeroTokensToFill));
     }
     if close_ts < utils::unix_timestamp()? {
         return Err(error!(ErrorCode::InvalidCloseTimestamp));

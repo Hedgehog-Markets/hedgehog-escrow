@@ -210,7 +210,7 @@ describe("initialize market", () => {
       initMarket({ yesAmount: intoU64BN(0) })
         .signers([market])
         .rpc(),
-    ).rejects.toThrowProgramError(ErrorCode.CannotHaveNonZeroAmounts);
+    ).rejects.toThrowProgramError(ErrorCode.ZeroTokensToFill);
   });
 
   it("fails if the no amount is zero", async () => {
@@ -220,6 +220,6 @@ describe("initialize market", () => {
       initMarket({ noAmount: intoU64BN(0) })
         .signers([market])
         .rpc(),
-    ).rejects.toThrowProgramError(ErrorCode.CannotHaveNonZeroAmounts);
+    ).rejects.toThrowProgramError(ErrorCode.ZeroTokensToFill);
   });
 });
