@@ -12,7 +12,7 @@ module.exports = {
   testEnvironment: "node",
 
   setupFilesAfterEnv: [
-    "jest-plugin-must-assert",
+    // "jest-plugin-must-assert",
     "<rootDir>/tests/matchers.ts",
     "<rootDir>/tests/provider.ts",
   ],
