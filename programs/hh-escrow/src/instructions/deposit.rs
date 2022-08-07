@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::Token;
+use anchor_spl::token::{Token, TokenAccount};
 
 use common::traits::KeyRef;
 
@@ -24,23 +24,22 @@ pub struct DepositParams {
 #[instruction(params: DepositParams)]
 pub struct Deposit<'info> {
     /// The market to deposit into.
-    #[account(
-        mut,
-        has_one = yes_token_account @ ErrorCode::IncorrectYesEscrow,
-        has_one = no_token_account @ ErrorCode::IncorrectNoEscrow,
-    )]
+    #[account(mut)]
     pub market: Account<'info, Market>,
     /// The user depositing into the market.
     pub user: Signer<'info>,
-    /// The [UserPosition] account for this user and market.
+    /// The user's position for this market.
     #[account(mut, seeds = [b"user", user.key_ref().as_ref(), market.key_ref().as_ref()], bump)]
     pub user_position: Account<'info, UserPosition>,
     /// The user's token account.
     ///
-    /// CHECK: Reads and writes only occur via the token program, which
-    /// performs necessary checks.
-    #[account(mut)]
-    pub user_token_account: UncheckedAccount<'info>,
+    /// We explicitly check the owner for this account.
+    #[account(
+        mut,
+        constraint = user_token_account.key_ref() != yes_token_account.key_ref() && user_token_account.key_ref() != no_token_account.key_ref() @ ErrorCode::UserAccountCannotBeMarketAccount,
+        constraint = user_token_account.owner == *user.key_ref() @ ErrorCode::UserAccountIncorrectOwner,
+    )]
+    pub user_token_account: Account<'info, TokenAccount>,
     /// Escrow for tokens on the yes side of the market.
     ///
     /// CHECK: Reads and writes only occur via the token program, which
@@ -129,14 +128,14 @@ pub fn handler(ctx: Context<Deposit>, params: DepositParams) -> Result<()> {
     // Perform the transfers.
     utils::non_signer_transfer(
         &ctx.accounts.token_program,
-        &ctx.accounts.user_token_account,
+        ctx.accounts.user_token_account.as_ref(),
         &ctx.accounts.yes_token_account,
         &ctx.accounts.user,
         yes_deposit,
     )?;
     utils::non_signer_transfer(
         &ctx.accounts.token_program,
-        &ctx.accounts.user_token_account,
+        ctx.accounts.user_token_account.as_ref(),
         &ctx.accounts.no_token_account,
         &ctx.accounts.user,
         no_deposit,

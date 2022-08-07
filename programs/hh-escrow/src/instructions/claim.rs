@@ -15,23 +15,16 @@ pub struct Claim<'info> {
     pub market: Box<Account<'info, Market>>,
     /// The user claiming winnings.
     pub user: Signer<'info>,
-    /// The user's [UserPosition] account.
-    #[account(
-        mut,
-        seeds = [
-            b"user",
-            user.key_ref().as_ref(),
-            market.key_ref().as_ref(),
-        ],
-        bump,
-    )]
+    /// The user's position for this market.
+    #[account(mut, seeds = [b"user", user.key_ref().as_ref(), market.key_ref().as_ref()], bump)]
     pub user_position: Account<'info, UserPosition>,
     /// The user's token account.
     ///
     /// We explicitly check the owner for this account.
-    #[account(mut,
+    #[account(
+        mut,
         constraint = user_token_account.key_ref() != yes_token_account.key_ref() && user_token_account.key_ref() != no_token_account.key_ref() @ ErrorCode::UserAccountCannotBeMarketAccount,
-        constraint = user_token_account.owner == *user.key_ref() @ ErrorCode::UserAccountIncorrectOwner
+        constraint = user_token_account.owner == *user.key_ref() @ ErrorCode::UserAccountIncorrectOwner,
     )]
     pub user_token_account: Account<'info, TokenAccount>,
     /// Escrow for tokens on the yes side of the market.

@@ -13,64 +13,55 @@ use crate::utils;
 /// call to [UpdateStatus].
 #[derive(Accounts)]
 pub struct Withdraw<'info> {
+    /// The Market account.
+    #[account(mut)]
+    pub market: Account<'info, Market>,
     /// The user withdrawing funds.
     pub user: Signer<'info>,
-    /// The yes token account for the market.
+    /// The user's position for this market.
+    #[account(mut, seeds = [b"user", user.key_ref().as_ref(), market.key_ref().as_ref()], bump)]
+    pub user_position: Account<'info, UserPosition>,
+    /// The user's token account.
     ///
-    /// CHECK: We do not read any data from this account. The correctness of the
-    /// account is checked by the constraint on the market account. Writes
-    /// only occur via the token program, which performs necessary checks on
-    /// sufficient balance and matching token mints.
-    #[account(mut)]
-    pub yes_token_account: UncheckedAccount<'info>,
-    /// The no token account for the market.
-    ///
-    /// CHECK: We do not read any data from this account. The correctness of the
-    /// account is checked by the constraint on the market account. Writes
-    /// only occur via the token program, which performs necessary checks on
-    /// sufficient balance and matching token mints.
-    #[account(mut)]
-    pub no_token_account: UncheckedAccount<'info>,
-    /// The user's token account. We explicitly check the owner for this
-    /// account.
-    #[account(mut,
+    /// We explicitly check the owner for this account.
+    #[account(
+        mut,
         constraint = user_token_account.key_ref() != yes_token_account.key_ref() && user_token_account.key_ref() != no_token_account.key_ref() @ ErrorCode::UserAccountCannotBeMarketAccount,
-        constraint = user_token_account.owner == *user.key_ref() @ ErrorCode::UserAccountIncorrectOwner
+        constraint = user_token_account.owner == *user.key_ref() @ ErrorCode::UserAccountIncorrectOwner,
     )]
     pub user_token_account: Account<'info, TokenAccount>,
+    /// Escrow for tokens on the yes side of the market.
+    ///
+    /// CHECK: Reads and writes only occur via the token program, which
+    /// performs necessary checks.
+    #[account(mut, address = market.yes_token_account @ ErrorCode::IncorrectYesEscrow)]
+    pub yes_token_account: UncheckedAccount<'info>,
+    /// Escrow for tokens on the no side of the market.
+    ///
+    /// CHECK: Reads and writes only occur via the token program, which
+    /// performs necessary checks.
+    #[account(mut, address = market.no_token_account @ ErrorCode::IncorrectNoEscrow)]
+    pub no_token_account: UncheckedAccount<'info>,
     /// The authority for the market token accounts.
     ///
     /// CHECK: We do not read/write any data from this account.
     #[account(seeds = [b"authority", market.key_ref().as_ref()], bump)]
     pub authority: AccountInfo<'info>,
-    /// The Market account.
-    #[account(
-        mut,
-        constraint = market.outcome == Outcome::Invalid @ ErrorCode::MarketNotInvalid,
-        has_one = yes_token_account @ ErrorCode::IncorrectYesEscrow,
-        has_one = no_token_account @ ErrorCode::IncorrectNoEscrow,
-    )]
-    pub market: Account<'info, Market>,
-    /// The user's [UserPosition] account for this market.
-    #[account(mut, seeds = [b"user", user.key_ref().as_ref(), market.key_ref().as_ref()], bump)]
-    pub user_position: Account<'info, UserPosition>,
+
     /// The SPL Token Program.
     pub token_program: Program<'info, Token>,
 }
 
-impl Withdraw<'_> {
-    /// Verify that the market is finalized.
-    fn verify_finalized(&mut self) -> Result<()> {
-        if !self.market.is_finalized()? {
-            return Err(error!(ErrorCode::NotFinalized));
-        }
-        Ok(())
-    }
-}
-
 pub fn handler(ctx: Context<Withdraw>) -> Result<()> {
     // Check that the market is finalized.
-    ctx.accounts.verify_finalized()?;
+    if !ctx.accounts.market.is_finalized()? {
+        return Err(error!(ErrorCode::NotFinalized));
+    }
+    // Check that the outcome is invalid.
+    // Note that this may be true if the market just auto-finalized.
+    if ctx.accounts.market.outcome != Outcome::Invalid {
+        return Err(error!(ErrorCode::MarketNotInvalid));
+    }
 
     let (yes_withdraw, no_withdraw) = {
         let user_position = &mut ctx.accounts.user_position;
