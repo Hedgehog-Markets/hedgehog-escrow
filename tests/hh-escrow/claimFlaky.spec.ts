@@ -14,6 +14,7 @@ import {
   createInitMintInstructions,
   sendTx,
   sleep,
+  tryGetOnChainTimestamp,
   __throw,
 } from "../utils";
 
@@ -32,7 +33,15 @@ const NO_AMOUNT = 2_000_000n;
 
 const TOP_OFF = 5_000_000n;
 
+// NOTE: These tests are flaky. To test interactions we generally aim to set the
+// close timestamp to be the same as the timestamp when the market is
+// initialized so we can immediately process an update on it.
+//
+// This is done by setting the timestamp to the upcoming block. If the
+// instruction does not appear in that given block, the tests will fail.
 describe.skip("claim (clock-dependent)", () => {
+  jest.retryTimes(2);
+
   const mint = Keypair.generate();
   const user = Keypair.generate();
   const userTokenAccount = Keypair.generate();
@@ -92,13 +101,28 @@ describe.skip("claim (clock-dependent)", () => {
       user: user.publicKey,
     });
 
-  const tryGetCurrentTimestamp = async () => {
-    const epochInfo = await program.provider.connection.getEpochInfo();
-    const time = await program.provider.connection.getBlockTime(
-      epochInfo.absoluteSlot + 1,
-    );
+  const sleepUntil = async (ts: number, timeoutMs: number) => {
+    let timedOut = false;
 
-    return time ?? __throw(new Error("Failed to get block time"));
+    const timeout = sleep(timeoutMs).then(() => {
+      timedOut = true;
+      throw new Error("Timeout out waiting for clock progression");
+    });
+
+    const wait = (async () => {
+      while (!timedOut) {
+        await sleep(100);
+
+        const time = await tryGetOnChainTimestamp();
+        if (ts <= time) {
+          return;
+        }
+      }
+
+      throw new Error("Timeout out waiting for clock progression");
+    })();
+
+    await Promise.race([wait, timeout]);
   };
 
   //////////////////////////////////////////////////////////////////////////////
@@ -173,11 +197,9 @@ describe.skip("claim (clock-dependent)", () => {
   //////////////////////////////////////////////////////////////////////////////
 
   it("fails if the market has finalized to invalid", async () => {
-    jest.retryTimes(2);
-
     expect.assertions(1);
 
-    const time = await tryGetCurrentTimestamp();
+    const time = await tryGetOnChainTimestamp();
 
     const closeTs = intoU64BN(time + 2);
     const expiryTs = intoU64BN(time + 3602);
@@ -197,34 +219,14 @@ describe.skip("claim (clock-dependent)", () => {
       .signers([market, user])
       .rpc();
 
-    {
-      const finalizeTs = closeTs.toNumber();
-
-      let finalized = false;
-
-      for (let i = 0; i < 80; i++) {
-        await sleep(100);
-
-        const time = await tryGetCurrentTimestamp();
-        if (finalizeTs <= time) {
-          finalized = true;
-          break;
-        }
-      }
-
-      if (!finalized) {
-        throw new Error("Timed out waiting for clock progression");
-      }
-    }
+    await sleepUntil(closeTs.toNumber(), 10_000);
 
     await expect(claim().signers([user]).rpc()).rejects.toThrowProgramError(
       ErrorCode.CannotClaim,
     );
-  });
+  }, 15_000);
 
   it("successfully claims", async () => {
-    jest.retryTimes(2);
-
     expect.assertions(6);
 
     const otherUserTokenAccount = Keypair.generate();
@@ -282,7 +284,7 @@ describe.skip("claim (clock-dependent)", () => {
 
     let expiryTs: number;
     {
-      const time = await tryGetCurrentTimestamp();
+      const time = await tryGetOnChainTimestamp();
 
       const closeTs = intoU64BN((expiryTs = time + 2));
       const params = initMarketParams({
@@ -326,23 +328,7 @@ describe.skip("claim (clock-dependent)", () => {
         .rpc();
     }
 
-    {
-      let pastExpiry = false;
-
-      for (let i = 0; i < 80; i++) {
-        await sleep(100);
-
-        const time = await tryGetCurrentTimestamp();
-        if (expiryTs <= time) {
-          pastExpiry = true;
-          break;
-        }
-      }
-
-      if (!pastExpiry) {
-        throw new Error("Timed out waiting for clock progression");
-      }
-    }
+    await sleepUntil(expiryTs, 10_000);
 
     await claim()
       .preInstructions([updateStateIx])
@@ -359,5 +345,5 @@ describe.skip("claim (clock-dependent)", () => {
     await expect(noTokenAccount).toHaveBalance(noAmount);
     await expect(feeAccount).toHaveBalance(1n);
     await expect(userTokenAccount).toHaveBalance(4_000_057n);
-  });
+  }, 15_000);
 });
