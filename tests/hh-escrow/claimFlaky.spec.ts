@@ -55,8 +55,7 @@ describe.skip("claim (clock-dependent)", () => {
     noTokenAccount: PublicKey,
     userPosition: PublicKey;
 
-  let userPositionIx: TransactionInstruction,
-    updateStateIx: TransactionInstruction;
+  let userPositionIx: TransactionInstruction;
 
   //////////////////////////////////////////////////////////////////////////////
 
@@ -182,14 +181,6 @@ describe.skip("claim (clock-dependent)", () => {
         user: user.publicKey,
         market: market.publicKey,
         userPosition,
-      })
-      .instruction();
-
-    updateStateIx = await program.methods
-      .updateState({ outcome: { No: {} } })
-      .accounts({
-        market: market.publicKey,
-        resolver: resolver.publicKey,
       })
       .instruction();
   });
@@ -329,6 +320,14 @@ describe.skip("claim (clock-dependent)", () => {
     }
 
     await sleepUntil(expiryTs, 10_000);
+
+    const updateStateIx = await program.methods
+      .updateState({ outcome: { No: {} } })
+      .accounts({
+        market: market.publicKey,
+        resolver: resolver.publicKey,
+      })
+      .instruction();
 
     await claim()
       .preInstructions([updateStateIx])
