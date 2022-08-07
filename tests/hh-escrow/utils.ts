@@ -6,12 +6,15 @@ import { Program } from "@project-serum/anchor";
 import { Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 
 import {
+  ProgramError,
+  SystemErrorCode,
   BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
   ESCROW_PROGRAM_ID,
   ESCROW_PROGRAM_IDL,
   parseErrorCodes,
   translateAddress,
   getAssociatedTokenAddress,
+  sendTx,
 } from "../utils";
 
 type EscrowTypes = IdlTypes<HhEscrow>;
@@ -83,21 +86,34 @@ export const globalState = (() => {
       );
       const protocolFeeBps = 100; // 1%.
 
-      await program.methods
-        .initializeGlobalState({
-          authority: authority.publicKey,
-          feeWallet,
-          protocolFeeBps,
-        })
-        .accounts({
-          globalState: address,
-          payer: program.provider.wallet.publicKey,
-          upgradeAuthority: program.provider.wallet.publicKey,
-          escrowProgram: program.programId,
-          programData,
-          systemProgram: SystemProgram.programId,
-        })
-        .rpc();
+      try {
+        await sendTx(
+          await program.methods
+            .initializeGlobalState({
+              authority: authority.publicKey,
+              feeWallet,
+              protocolFeeBps,
+            })
+            .accounts({
+              globalState: address,
+              payer: program.provider.wallet.publicKey,
+              upgradeAuthority: program.provider.wallet.publicKey,
+              escrowProgram: program.programId,
+              programData,
+              systemProgram: SystemProgram.programId,
+            })
+            .transaction(),
+        );
+      } catch (err) {
+        if (
+          err instanceof ProgramError &&
+          err.program.equals(SystemProgram.programId) &&
+          err.code === SystemErrorCode.AccountAlreadyInUse
+        ) {
+          return;
+        }
+        throw err;
+      }
     },
 
     async getFeeAccountFor(mint: Address): Promise<PublicKey> {
