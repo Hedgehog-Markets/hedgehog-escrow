@@ -3,6 +3,7 @@ import type { InitializeMarketParams } from "./utils";
 import { Keypair, PublicKey, TransactionInstruction } from "@solana/web3.js";
 
 import {
+  SKIP_FLAKY,
   spl,
   intoU64,
   intoU64BN,
@@ -33,13 +34,15 @@ const NO_AMOUNT = 2_000_000n;
 
 const TOP_OFF = 5_000_000n;
 
+const describeFlaky = SKIP_FLAKY ? describe.skip : describe;
+
 // NOTE: These tests are flaky. To test interactions we generally aim to set the
 // close timestamp to be the same as the timestamp when the market is
 // initialized so we can immediately process an update on it.
 //
 // This is done by setting the timestamp to the upcoming block. If the
 // instruction does not appear in that given block, the tests will fail.
-describe.skip("claim (clock-dependent)", () => {
+describeFlaky("claim (clock-dependent)", () => {
   jest.retryTimes(2);
 
   const mint = Keypair.generate();
@@ -191,11 +194,9 @@ describe.skip("claim (clock-dependent)", () => {
     expect.assertions(1);
 
     const time = await tryGetOnChainTimestamp();
+    const closeTs = time + 2;
 
-    const closeTs = intoU64BN(time + 2);
-    const expiryTs = intoU64BN(time + 3602);
-
-    const params = initMarketParams({ closeTs, expiryTs });
+    const params = initMarketParams({ closeTs: intoU64BN(closeTs) });
 
     await program.methods
       .initializeMarket(params)
@@ -210,12 +211,12 @@ describe.skip("claim (clock-dependent)", () => {
       .signers([market, user])
       .rpc();
 
-    await sleepUntil(closeTs.toNumber(), 10_000);
+    await sleepUntil(closeTs, 5_000);
 
     await expect(claim().signers([user]).rpc()).rejects.toThrowProgramError(
       ErrorCode.CannotClaim,
     );
-  }, 15_000);
+  });
 
   it("successfully claims", async () => {
     expect.assertions(6);
@@ -319,7 +320,7 @@ describe.skip("claim (clock-dependent)", () => {
         .rpc();
     }
 
-    await sleepUntil(expiryTs, 10_000);
+    await sleepUntil(expiryTs, 5_000);
 
     const updateStateIx = await program.methods
       .updateState({ outcome: { No: {} } })
@@ -344,5 +345,5 @@ describe.skip("claim (clock-dependent)", () => {
     await expect(noTokenAccount).toHaveBalance(noAmount);
     await expect(feeAccount).toHaveBalance(1n);
     await expect(userTokenAccount).toHaveBalance(4_000_057n);
-  }, 15_000);
+  });
 });

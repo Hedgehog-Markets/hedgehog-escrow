@@ -38,6 +38,7 @@ const { verbose, opts, tests } = (() => {
     verbose: boolean;
     grep?: string;
     skipBuild: boolean;
+    skipFlaky: boolean;
   };
   type Args = [string[]];
 
@@ -48,13 +49,14 @@ const { verbose, opts, tests } = (() => {
     .option("-v, --verbose", "use verbose output", false)
     .option("--grep <SEARCH>", "run tests matching the search string")
     .option("--skip-build", "skip building programs", false)
+    .option("--skip-flaky", "skip flaky tests", false)
     .argument("[test...]", "test files to run")
     .parse();
 
-  const { verbose, grep, skipBuild } = program.opts<Opts>();
+  const { verbose, grep, skipBuild, skipFlaky } = program.opts<Opts>();
   const [tests] = program.processedArgs as Args;
 
-  return { verbose, opts: { grep, skipBuild }, tests };
+  return { verbose, opts: { grep, skipBuild, skipFlaky }, tests };
 })();
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -105,6 +107,7 @@ void startValidator(ledger, wallet).then(() => {
       ...process.env,
       ANCHOR_PROVIDER_URL: `${LOCALHOST}:${RPC_PORT}`,
       ANCHOR_WALLET: walletPath,
+      SKIP_FLAKY: opts.skipFlaky ? "1" : undefined,
     },
   }).on("exit", (code) => process.exit(code ?? 1));
 });
