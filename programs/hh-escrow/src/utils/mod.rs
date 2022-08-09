@@ -1,6 +1,26 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, Transfer};
 
+use crate::error::ErrorCode;
+
+#[cfg(test)]
+pub mod mock;
+
+pub fn to_u128(val: u64) -> Result<u128> {
+    val.try_into()
+        .map_err(|_| error!(ErrorCode::ConversionFailure))
+}
+
+pub fn to_u64(val: u128) -> Result<u64> {
+    val.try_into()
+        .map_err(|_| error!(ErrorCode::ConversionFailure))
+}
+
+/// Returns the current unix timestamp.
+pub fn unix_timestamp() -> Result<u64> {
+    Ok(Clock::get()?.unix_timestamp as u64)
+}
+
 pub fn non_signer_transfer<'info>(
     token_program: &Program<'info, Token>,
     from: &AccountInfo<'info>,

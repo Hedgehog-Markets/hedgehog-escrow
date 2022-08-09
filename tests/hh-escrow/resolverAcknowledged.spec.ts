@@ -1,78 +1,67 @@
-import * as anchor from '@project-serum/anchor';
-import { Program } from '@project-serum/anchor';
-import { Keypair, PublicKey, Transaction } from '@solana/web3.js';
-import type { HhEscrow } from '../../target/types/hh_escrow';
-import { intoU64BN } from '../u64';
+import type { InitializeMarketParams } from "./utils";
+
+import { Keypair } from "@solana/web3.js";
+
 import {
+  intoU64BN,
+  unixTimestamp,
   createInitAccountInstructions,
   createInitMintInstructions,
-} from '../utils';
-import { ErrorCode, InitializeMarketParams } from './utils';
+  __throw,
+} from "../utils";
 
-describe('hh-escrow deposit tests', () => {
-  const YES_AMOUNT = 1_000_000;
-  const NO_AMOUNT = 2_000_000;
+import {
+  ErrorCode,
+  program,
+  getAuthorityAddress,
+  getYesTokenAccountAddress,
+  getNoTokenAccountAddress,
+} from "./utils";
 
-  // Configure the client to use the local cluster.
-  const provider = anchor.Provider.env();
-  anchor.setProvider(provider);
+const YES_AMOUNT = 1_000_000n;
+const NO_AMOUNT = 2_000_000n;
 
-  const program = anchor.workspace.HhEscrow as Program<HhEscrow>;
-
-  // Parameters.
-  const closeTs = BigInt(Date.now()) / 1000n + 3600n;
-  const expiryTs = closeTs + 3600n;
-  const resolver = Keypair.generate();
-  const initializeMarketParams: InitializeMarketParams = {
-    closeTs: intoU64BN(closeTs),
-    expiryTs: intoU64BN(expiryTs),
-    resolutionDelay: 3600,
-    yesAmount: intoU64BN(YES_AMOUNT),
-    noAmount: intoU64BN(NO_AMOUNT),
-    resolver: resolver.publicKey,
-    uri: '0'.repeat(256),
-  };
-
-  // Accounts.
-  const mint = Keypair.generate();
+describe("resolver acknowledged", () => {
   const market = Keypair.generate();
+  const mint = Keypair.generate();
   const user = Keypair.generate();
   const userTokenAccount = Keypair.generate();
-  const [authority] = PublicKey.findProgramAddressSync(
-    [Buffer.from('authority'), market.publicKey.toBuffer()],
-    program.programId
-  );
-  const [yesTokenAccount] = PublicKey.findProgramAddressSync(
-    [Buffer.from('yes'), market.publicKey.toBuffer()],
-    program.programId
-  );
-  const [noTokenAccount] = PublicKey.findProgramAddressSync(
-    [Buffer.from('no'), market.publicKey.toBuffer()],
-    program.programId
-  );
+  const resolver = Keypair.generate();
+
+  const authority = getAuthorityAddress(market);
+  const [yesTokenAccount] = getYesTokenAccountAddress(market);
+  const [noTokenAccount] = getNoTokenAccountAddress(market);
+
+  //////////////////////////////////////////////////////////////////////////////
 
   beforeAll(async () => {
-    const mintIxs = await createInitMintInstructions({
-      mint: mint.publicKey,
-      mintAuthority: provider.wallet.publicKey,
-      connection: provider.connection,
-      payer: provider.wallet.publicKey,
-    });
-    const userTokenAccountIxs = await createInitAccountInstructions({
-      account: userTokenAccount.publicKey,
-      mint: mint.publicKey,
-      user: user.publicKey,
-      connection: provider.connection,
-      payer: provider.wallet.publicKey,
-    });
+    const closeTs = unixTimestamp() + 3600n;
+    const expiryTs = closeTs + 3600n;
 
-    await provider.send(
-      new Transaction().add(...mintIxs, ...userTokenAccountIxs),
-      [mint, userTokenAccount]
-    );
+    const params: InitializeMarketParams = {
+      closeTs: intoU64BN(closeTs),
+      expiryTs: intoU64BN(expiryTs),
+      resolutionDelay: 3600,
+      yesAmount: intoU64BN(YES_AMOUNT),
+      noAmount: intoU64BN(NO_AMOUNT),
+      resolver: resolver.publicKey,
+      uri: "0".repeat(200),
+    };
+
+    const preIxs = [
+      ...(await createInitMintInstructions({
+        mint,
+        mintAuthority: program.provider.wallet.publicKey,
+      })),
+      ...(await createInitAccountInstructions({
+        account: userTokenAccount,
+        mint,
+        user,
+      })),
+    ];
 
     await program.methods
-      .initializeMarket(initializeMarketParams)
+      .initializeMarket(params)
       .accounts({
         market: market.publicKey,
         tokenMint: mint.publicKey,
@@ -80,26 +69,16 @@ describe('hh-escrow deposit tests', () => {
         yesTokenAccount,
         noTokenAccount,
       })
-      .signers([market])
+      .preInstructions(preIxs)
+      .signers([mint, userTokenAccount, market])
       .rpc();
   });
 
-  it('fails to acknowledge if the resolver does not sign', async () => {
+  //////////////////////////////////////////////////////////////////////////////
+
+  it("fails if the incorrect resolver is provided", async () => {
     expect.assertions(1);
 
-    await expect(
-      program.methods
-        .resolverAcknowledge()
-        .accounts({
-          market: market.publicKey,
-          resolver: resolver.publicKey,
-        })
-        .rpc()
-    ).rejects.toThrow();
-  });
-
-  it('fails to acknowledge if the incorrect resolver is provided', async () => {
-    expect.assertions(1);
     const wrongResolver = Keypair.generate();
 
     await expect(
@@ -110,11 +89,11 @@ describe('hh-escrow deposit tests', () => {
           resolver: wrongResolver.publicKey,
         })
         .signers([wrongResolver])
-        .rpc()
-    ).rejects.toThrowAnchorError(ErrorCode.IncorrectResolver);
+        .rpc(),
+    ).rejects.toThrowProgramError(ErrorCode.IncorrectResolver);
   });
 
-  it('successfully acknowledges the market', async () => {
+  it("successfully acknowledges the market", async () => {
     expect.assertions(1);
 
     await program.methods
@@ -126,8 +105,8 @@ describe('hh-escrow deposit tests', () => {
       .signers([resolver])
       .rpc();
 
-    const marketAccount = await program.account.market.fetch(market.publicKey);
+    const info = await program.account.market.fetch(market.publicKey);
 
-    expect(marketAccount.acknowledged).toBe(true);
+    expect(info.acknowledged).toBe(true);
   });
 });

@@ -5,16 +5,18 @@ const { compilerOptions } = require("./tsconfig.json");
 /** @type {import("@jest/types").Config.InitialOptions} */
 module.exports = {
   verbose: true,
+  forceExit: true,
+
+  maxWorkers: 1,
 
   testEnvironment: "node",
 
-  forceExit: true,
-
   setupFilesAfterEnv: [
-    "jest-plugin-must-assert",
-    "<rootDir>/tests/matchers.ts"
+    // "jest-plugin-must-assert",
+    "<rootDir>/tests/matchers.ts",
+    "<rootDir>/tests/provider.ts",
   ],
-  testMatch: ["**/tests/*.spec.ts", "**/tests/**/*.spec.ts"],
+  testMatch: ["<rootDir>/tests/**/*.spec.ts"],
 
   // Having problems with ts-jest, so using @swc/jest instead.
   transform: {

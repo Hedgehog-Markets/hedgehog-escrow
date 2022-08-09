@@ -2,9 +2,11 @@ use anchor_lang::prelude::*;
 
 use crate::error::ErrorCode;
 
-const URI_MAX_LEN: usize = 256;
+const URI_MAX_LEN: usize = 200;
 
 /// A string URI.
+///
+/// This should point to an off-chain JSON file that contains additional data.
 #[derive(Clone, AnchorDeserialize, AnchorSerialize)]
 pub struct UriResource {
     /// The length of the URI.
@@ -17,12 +19,15 @@ impl Default for UriResource {
     fn default() -> Self {
         UriResource {
             len: 0,
-            uri: [0u8; URI_MAX_LEN],
+            uri: [0; URI_MAX_LEN],
         }
     }
 }
 
 impl UriResource {
+    #[allow(clippy::identity_op)]
+    pub const LEN: usize = 2 + (URI_MAX_LEN * 1);
+
     /// Validates the resource.
     pub fn validate(uri: &str) -> Result<UriResource> {
         let len = uri.len();
@@ -38,6 +43,4 @@ impl UriResource {
             uri: bytes,
         })
     }
-
-    pub const LEN: usize = 2 + URI_MAX_LEN * 1;
 }

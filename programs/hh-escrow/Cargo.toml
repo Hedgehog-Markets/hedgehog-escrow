@@ -3,23 +3,28 @@ name = "hh-escrow"
 version = "1.0.0"
 description = "Program for P2P predictions"
 edition = "2021"
-rust-version = "1.56"
+rust-version = "1.59"
 
 [lib]
 crate-type = ["cdylib", "lib"]
 name = "hh_escrow"
 
 [features]
+default = []
+
 no-entrypoint = []
 no-idl = []
 no-log-ix-name = []
+
 cpi = ["no-entrypoint"]
-default = []
 
 [dependencies]
 common = { path = "../../libs/common" }
 
-anchor-lang = "0.24.2"
-anchor-spl = "0.24.2"
-solana-program = "1.9.13"
-spl-associated-token-account = "1.0.5"
+anchor-lang = "0.25.0"
+anchor-spl = "0.25.0"
+solana-program = "1.10"
+spl-token = { version = "3.3", features = ["no-entrypoint"] }
+spl-associated-token-account = { version = "1.0.5", features = ["no-entrypoint"] }
+
+borsh = { version = "0.9.3", features = ["const-generics"] }

@@ -1,6 +1,4 @@
-use anchor_lang::prelude::*;
-
-#[error_code]
+#[anchor_lang::error_code]
 pub enum ErrorCode {
     #[msg("Market resource is invalid.")]
     InvalidMarketResource,
@@ -8,10 +6,8 @@ pub enum ErrorCode {
     InvalidCloseTimestamp,
     #[msg("Expiry timestamp must be greater than the close timestamp.")]
     InvalidExpiryTimestamp,
-    #[msg("Bump seed was non canonical.")]
-    NonCanonicalBumpSeed,
-    #[msg("Numerical overflow occurred.")]
-    Overflow,
+    #[msg("Missing bump seed.")]
+    MissingBumpSeed,
     #[msg("This market is already finalized.")]
     AlreadyFinalized,
     #[msg("This market is closed for trading.")]
@@ -34,10 +30,10 @@ pub enum ErrorCode {
     FeeTooHigh,
     #[msg("The provided program data is incorrect.")]
     InvalidProgramData,
-    #[msg("The provided program authority is incorrect.")]
-    InvalidProgramAuthority,
-    #[msg("The provided global state owner is incorrect.")]
-    IncorrectGlobalStateOwner,
+    #[msg("The provided program upgrade authority is incorrect.")]
+    InvalidProgramUpgradeAuthority,
+    #[msg("The provided global state authority is incorrect.")]
+    IncorrectGlobalStateAuthority,
     #[msg("The fee token account must be owned by the fee wallet.")]
     AccountNotOwnedByFeeWallet,
     #[msg("The user account must not be one of the market-owned accounts.")]
@@ -48,6 +44,10 @@ pub enum ErrorCode {
     CannotClaim,
     #[msg("Must use the associated token account of the fee wallet to collect fees.")]
     AssociatedTokenAccountRequired,
-    #[msg("Cannot have nonzero amounts.")]
-    CannotHaveNonzeroAmounts,
+    #[msg("Cannot have zero tokens to fill for a side.")]
+    ZeroTokensToFill,
+    #[msg("Calculation failed.")]
+    CalculationFailure,
+    #[msg("Conversion to or from u64 failed.")]
+    ConversionFailure,
 }

@@ -1,8 +1,8 @@
 use anchor_lang::prelude::*;
 
 /// A possible market outcome.
-#[repr(u8)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, AnchorDeserialize, AnchorSerialize)]
+#[repr(u8)]
 pub enum Outcome {
     /// The market question has not yet resolved.
     Open,
@@ -12,6 +12,10 @@ pub enum Outcome {
     No,
     /// The market is no longer valid (e.g. the event was canceled).
     Invalid,
+}
+
+impl Outcome {
+    pub const LEN: usize = 1;
 }
 
 impl Default for Outcome {

@@ -1,345 +1,288 @@
-import * as anchor from '@project-serum/anchor';
-import { Program, LangErrorCode } from '@project-serum/anchor';
-import { Keypair, PublicKey, Transaction } from '@solana/web3.js';
-import type { HhEscrow } from '../../target/types/hh_escrow';
-import { intoU64BN } from '../u64';
+import type { DepositParams, InitializeMarketParams } from "./utils";
+
+import { LangErrorCode } from "@project-serum/anchor";
+import { Keypair } from "@solana/web3.js";
+
 import {
+  spl,
+  intoU64,
+  intoU64BN,
+  unixTimestamp,
+  getBalance,
   createInitAccountInstructions,
   createInitMintInstructions,
-} from '../utils';
-import { DepositParams, ErrorCode, InitializeMarketParams } from './utils';
+  sendTx,
+  __throw,
+} from "../utils";
+
+import {
+  ErrorCode,
+  program,
+  getAuthorityAddress,
+  getYesTokenAccountAddress,
+  getNoTokenAccountAddress,
+  getUserPositionAddress,
+} from "./utils";
+
+const YES_AMOUNT = 1_000_000n;
+const NO_AMOUNT = 2_000_000n;
+
+const TOP_OFF = 5_000_000n;
 
 // NOTE: Tests in this block have a dependency order.
-describe('hh-escrow deposit tests', () => {
-  const YES_AMOUNT = 1_000_000;
-  const NO_AMOUNT = 2_000_000;
-
-  // Configure the client to use the local cluster.
-  const provider = anchor.Provider.env();
-  anchor.setProvider(provider);
-  const spl = anchor.Spl.token(provider);
-
-  const program = anchor.workspace.HhEscrow as Program<HhEscrow>;
-
-  // Parameters.
-  const closeTs = BigInt(Date.now()) / 1000n + 3600n;
-  const expiryTs = closeTs + 3600n;
-  const resolver = Keypair.generate();
-  const initializeMarketParams: InitializeMarketParams = {
-    closeTs: intoU64BN(closeTs),
-    expiryTs: intoU64BN(expiryTs),
-    resolutionDelay: 3600,
-    yesAmount: intoU64BN(YES_AMOUNT),
-    noAmount: intoU64BN(NO_AMOUNT),
-    resolver: resolver.publicKey,
-    uri: '0'.repeat(256),
-  };
-  const depositParams: DepositParams = {
-    yesAmount: intoU64BN(YES_AMOUNT / 2),
-    noAmount: intoU64BN(NO_AMOUNT / 2),
-    allowPartial: false,
-  };
-
-  // Accounts.
-  const mint = Keypair.generate();
+describe("deposit", () => {
   const market = Keypair.generate();
+  const mint = Keypair.generate();
   const user = Keypair.generate();
   const userTokenAccount = Keypair.generate();
-  const [authority] = PublicKey.findProgramAddressSync(
-    [Buffer.from('authority'), market.publicKey.toBuffer()],
-    program.programId
-  );
-  const [yesTokenAccount] = PublicKey.findProgramAddressSync(
-    [Buffer.from('yes'), market.publicKey.toBuffer()],
-    program.programId
-  );
-  const [noTokenAccount] = PublicKey.findProgramAddressSync(
-    [Buffer.from('no'), market.publicKey.toBuffer()],
-    program.programId
-  );
-  const [userPosition] = PublicKey.findProgramAddressSync(
-    [
-      Buffer.from('user'),
-      user.publicKey.toBuffer(),
-      market.publicKey.toBuffer(),
-    ],
-    program.programId
-  );
+  const resolver = Keypair.generate();
 
-  beforeAll(async () => {
-    const mintIxs = await createInitMintInstructions({
-      mint: mint.publicKey,
-      mintAuthority: provider.wallet.publicKey,
-      connection: provider.connection,
-      payer: provider.wallet.publicKey,
-    });
-    const userTokenAccountIxs = await createInitAccountInstructions({
-      account: userTokenAccount.publicKey,
-      mint: mint.publicKey,
-      user: user.publicKey,
-      connection: provider.connection,
-      payer: provider.wallet.publicKey,
-    });
+  const authority = getAuthorityAddress(market);
+  const [yesTokenAccount] = getYesTokenAccountAddress(market);
+  const [noTokenAccount] = getNoTokenAccountAddress(market);
+  const userPosition = getUserPositionAddress(user, market);
 
-    await provider.send(
-      new Transaction().add(...mintIxs, ...userTokenAccountIxs),
-      [mint, userTokenAccount]
-    );
+  ///////////////////////////////////////////////////////////////////////////////
 
-    const ix = await program.methods
-      .initializeMarket(initializeMarketParams)
+  const deposit = ({
+    yesAmount,
+    noAmount,
+    allowPartial,
+  }: Partial<DepositParams>) => {
+    yesAmount ??= intoU64BN(YES_AMOUNT / 2n);
+    noAmount ??= intoU64BN(NO_AMOUNT / 2n);
+    allowPartial ??= false;
+
+    return program.methods
+      .deposit({
+        yesAmount,
+        noAmount,
+        allowPartial,
+      })
       .accounts({
         market: market.publicKey,
-        tokenMint: mint.publicKey,
-        authority,
+        user: user.publicKey,
+        userPosition,
+        userTokenAccount: userTokenAccount.publicKey,
         yesTokenAccount,
         noTokenAccount,
-      })
-      .instruction();
+      });
+  };
 
-    await program.methods
-      .initializeUserPosition()
-      .accounts({
-        user: user.publicKey,
-        payer: provider.wallet.publicKey,
-        market: market.publicKey,
-        userPosition,
-      })
-      .signers([market, user])
-      .preInstructions([ix])
-      .rpc();
+  //////////////////////////////////////////////////////////////////////////////
+
+  beforeAll(async () => {
+    await sendTx(
+      [
+        ...(await createInitMintInstructions({
+          mint,
+          mintAuthority: program.provider.wallet.publicKey,
+        })),
+        ...(await createInitAccountInstructions({
+          account: userTokenAccount,
+          mint,
+          user,
+        })),
+      ],
+      [mint, userTokenAccount],
+    );
+
+    const closeTs = unixTimestamp() + 3600n;
+    const expiryTs = closeTs + 3600n;
+
+    const params: InitializeMarketParams = {
+      closeTs: intoU64BN(closeTs),
+      expiryTs: intoU64BN(expiryTs),
+      resolutionDelay: 3600,
+      yesAmount: intoU64BN(YES_AMOUNT),
+      noAmount: intoU64BN(NO_AMOUNT),
+      resolver: resolver.publicKey,
+      uri: "0".repeat(200),
+    };
+
+    await sendTx(
+      [
+        await program.methods
+          .initializeMarket(params)
+          .accounts({
+            market: market.publicKey,
+            tokenMint: mint.publicKey,
+            authority,
+            yesTokenAccount,
+            noTokenAccount,
+          })
+          .instruction(),
+        await program.methods
+          .initializeUserPosition()
+          .accounts({
+            user: user.publicKey,
+            market: market.publicKey,
+            userPosition,
+          })
+          .instruction(),
+      ],
+      [market, user],
+    );
   });
 
   beforeEach(async () => {
-    const { value } = await provider.connection.getTokenAccountBalance(
-      userTokenAccount.publicKey
-    );
-
     // Top off the user's token account before each test.
-    const topOff = 5_000_000n - BigInt(value.amount);
+    const topOff = TOP_OFF - intoU64(await getBalance(userTokenAccount));
     if (topOff > 0n) {
       await spl.methods
         .mintTo(intoU64BN(topOff))
         .accounts({
           mint: mint.publicKey,
-          authority: provider.wallet.publicKey,
+          authority: program.provider.wallet.publicKey,
           to: userTokenAccount.publicKey,
         })
         .rpc();
     }
   });
 
-  it('fails if the yes token account does not match the market account', async () => {
+  //////////////////////////////////////////////////////////////////////////////
+
+  it("fails if the yes token account is incorrect", async () => {
     expect.assertions(1);
 
-    const otherTokenAccount = Keypair.generate();
+    const wrongTokenAccount = Keypair.generate();
 
-    // Create another yes token account.
-    const otherTokenAccountIxs = await createInitAccountInstructions({
-      account: otherTokenAccount.publicKey,
-      mint: mint.publicKey,
-      user: provider.wallet.publicKey,
-      connection: provider.connection,
-      payer: provider.wallet.publicKey,
+    const preIxs = await createInitAccountInstructions({
+      account: wrongTokenAccount,
+      mint,
+      user,
     });
-    await provider.send(new Transaction().add(...otherTokenAccountIxs), [
-      otherTokenAccount,
-    ]);
 
     await expect(
-      program.methods
-        .deposit(depositParams)
-        .accounts({
-          user: user.publicKey,
-          market: market.publicKey,
-          yesTokenAccount: otherTokenAccount.publicKey,
-          noTokenAccount,
-          userTokenAccount: userTokenAccount.publicKey,
-          userPosition,
-        })
-        .signers([user])
-        .rpc()
-    ).rejects.toThrowAnchorError(ErrorCode.IncorrectYesEscrow);
+      deposit({})
+        .accounts({ yesTokenAccount: wrongTokenAccount.publicKey })
+        .preInstructions(preIxs)
+        .signers([wrongTokenAccount, user])
+        .rpc(),
+    ).rejects.toThrowProgramError(ErrorCode.IncorrectYesEscrow);
   });
 
-  it('fails if the no token account does not match the market account', async () => {
+  it("fails if the no token account is incorrect", async () => {
     expect.assertions(1);
 
-    const otherTokenAccount = Keypair.generate();
+    const wrongTokenAccount = Keypair.generate();
 
-    // Create another yes token account.
-    const otherTokenAccountIxs = await createInitAccountInstructions({
-      account: otherTokenAccount.publicKey,
-      mint: mint.publicKey,
-      user: provider.wallet.publicKey,
-      connection: provider.connection,
-      payer: provider.wallet.publicKey,
+    const preIxs = await createInitAccountInstructions({
+      account: wrongTokenAccount,
+      mint,
+      user,
     });
-    await provider.send(new Transaction().add(...otherTokenAccountIxs), [
-      otherTokenAccount,
-    ]);
 
     await expect(
-      program.methods
-        .deposit(depositParams)
-        .accounts({
-          user: user.publicKey,
-          market: market.publicKey,
-          yesTokenAccount,
-          noTokenAccount: otherTokenAccount.publicKey,
-          userTokenAccount: userTokenAccount.publicKey,
-          userPosition,
-        })
-        .signers([user])
-        .rpc()
-    ).rejects.toThrowAnchorError(ErrorCode.IncorrectNoEscrow);
+      deposit({})
+        .accounts({ noTokenAccount: wrongTokenAccount.publicKey })
+        .preInstructions(preIxs)
+        .signers([wrongTokenAccount, user])
+        .rpc(),
+    ).rejects.toThrowProgramError(ErrorCode.IncorrectNoEscrow);
   });
 
-  it('fails if the user position account is incorrect', async () => {
+  it("fails if the user position is incorrect", async () => {
     expect.assertions(1);
 
-    const otherUser = Keypair.generate();
-    const [otherUserPosition] = PublicKey.findProgramAddressSync(
-      [
-        Buffer.from('user'),
-        otherUser.publicKey.toBuffer(),
-        market.publicKey.toBuffer(),
-      ],
-      program.programId
-    );
-    // Initialize a separate userPosition account.
-    await program.methods
-      .initializeUserPosition()
-      .accounts({
-        user: otherUser.publicKey,
-        payer: provider.wallet.publicKey,
-        market: market.publicKey,
-        userPosition: otherUserPosition,
-      })
-      .signers([otherUser])
-      .rpc();
+    const wrongUser = Keypair.generate();
+    const wrongUserPosition = getUserPositionAddress(wrongUser, market);
+
+    const preIxs = [
+      await program.methods
+        .initializeUserPosition()
+        .accounts({
+          user: wrongUser.publicKey,
+          market: market.publicKey,
+          userPosition: wrongUserPosition,
+        })
+        .instruction(),
+    ];
 
     await expect(
-      program.methods
-        .deposit(depositParams)
-        .accounts({
-          user: user.publicKey,
-          market: market.publicKey,
-          yesTokenAccount,
-          noTokenAccount,
-          userTokenAccount: userTokenAccount.publicKey,
-          userPosition: otherUserPosition,
-        })
-        .signers([user])
-        .rpc()
-    ).rejects.toThrowAnchorError(LangErrorCode.ConstraintSeeds);
+      deposit({})
+        .accounts({ userPosition: wrongUserPosition })
+        .preInstructions(preIxs)
+        .signers([user, wrongUser])
+        .rpc(),
+    ).rejects.toThrowProgramError(LangErrorCode.ConstraintSeeds);
   });
 
-  it('fails if the yes amount to deposit exceeds the market amount, and allow_partial is false', async () => {
+  it("fails if the yes deposit exceeds the market amount (allow_partial = false)", async () => {
     expect.assertions(1);
 
-    const newDepositParams = {
-      ...depositParams,
-      yesAmount: intoU64BN(YES_AMOUNT + 1),
-    };
-
     await expect(
-      program.methods
-        .deposit(newDepositParams)
-        .accounts({
-          user: user.publicKey,
-          market: market.publicKey,
-          yesTokenAccount,
-          noTokenAccount,
-          userTokenAccount: userTokenAccount.publicKey,
-          userPosition,
-        })
+      deposit({ yesAmount: intoU64BN(YES_AMOUNT + 1n) })
         .signers([user])
-        .rpc()
+        .rpc(),
     ).rejects.toThrowProgramError(ErrorCode.OverAllowedAmount);
   });
 
-  it('fails if the no amount to deposit exceeds the market amount, and allow_partial is false', async () => {
+  it("fails if the no deposit exceeds the market amount (allow_partial = false)", async () => {
     expect.assertions(1);
 
-    const newDepositParams = {
-      ...depositParams,
-      noAmount: intoU64BN(NO_AMOUNT + 1),
-    };
-
     await expect(
-      program.methods
-        .deposit(newDepositParams)
-        .accounts({
-          user: user.publicKey,
-          market: market.publicKey,
-          yesTokenAccount,
-          noTokenAccount,
-          userTokenAccount: userTokenAccount.publicKey,
-          userPosition,
-        })
+      deposit({ noAmount: intoU64BN(NO_AMOUNT + 1n) })
         .signers([user])
-        .rpc()
+        .rpc(),
     ).rejects.toThrowProgramError(ErrorCode.OverAllowedAmount);
   });
 
-  it('successfully deposits', async () => {
+  it("successfully deposits", async () => {
     expect.assertions(4);
 
-    await program.methods
-      .deposit(depositParams)
-      .accounts({
-        user: user.publicKey,
-        market: market.publicKey,
-        yesTokenAccount,
-        noTokenAccount,
-        userTokenAccount: userTokenAccount.publicKey,
-        userPosition,
-      })
-      .signers([user])
-      .rpc();
+    await deposit({}).signers([user]).rpc();
 
-    const userPositionAccount = await program.account.userPosition.fetch(
-      userPosition
+    const { yesAmount, noAmount } = await program.account.userPosition.fetch(
+      userPosition,
     );
-    const marketAccount = await program.account.market.fetch(market.publicKey);
+    const { yesFilled, noFilled } = await program.account.market.fetch(
+      market.publicKey,
+    );
 
-    expect(userPositionAccount.yesAmount).toEqualBN(YES_AMOUNT / 2);
-    expect(userPositionAccount.noAmount).toEqualBN(NO_AMOUNT / 2);
-    expect(marketAccount.yesFilled).toEqualBN(YES_AMOUNT / 2);
-    expect(marketAccount.noFilled).toEqualBN(NO_AMOUNT / 2);
+    expect(yesAmount).toEqualBN(YES_AMOUNT / 2n);
+    expect(noAmount).toEqualBN(NO_AMOUNT / 2n);
+    expect(yesFilled).toEqualBN(YES_AMOUNT / 2n);
+    expect(noFilled).toEqualBN(NO_AMOUNT / 2n);
   });
 
-  it('successfully fills if the amount to deposit exceeds the market amount, and allow_partial is true', async () => {
+  it("successfully deposits if the yes deposit exceeds the market amount (allow_partial = true)", async () => {
     expect.assertions(4);
 
-    const newDepositParams = {
-      yesAmount: intoU64BN(5_000_000),
-      noAmount: intoU64BN(5_000_000),
-      allowPartial: true,
-    };
-
-    await program.methods
-      .deposit(newDepositParams)
-      .accounts({
-        user: user.publicKey,
-        market: market.publicKey,
-        yesTokenAccount,
-        noTokenAccount,
-        userTokenAccount: userTokenAccount.publicKey,
-        userPosition,
-      })
+    await deposit({ yesAmount: intoU64BN(YES_AMOUNT + 1n), allowPartial: true })
       .signers([user])
       .rpc();
 
-    const userPositionAccount = await program.account.userPosition.fetch(
-      userPosition
+    const { yesAmount, noAmount } = await program.account.userPosition.fetch(
+      userPosition,
     );
-    const marketAccount = await program.account.market.fetch(market.publicKey);
+    const { yesFilled, noFilled } = await program.account.market.fetch(
+      market.publicKey,
+    );
 
-    expect(userPositionAccount.yesAmount).toEqualBN(YES_AMOUNT);
-    expect(userPositionAccount.noAmount).toEqualBN(NO_AMOUNT);
-    expect(marketAccount.yesFilled).toEqualBN(YES_AMOUNT);
-    expect(marketAccount.noFilled).toEqualBN(NO_AMOUNT);
+    expect(yesAmount).toEqualBN(YES_AMOUNT);
+    expect(noAmount).toEqualBN(NO_AMOUNT);
+    expect(yesFilled).toEqualBN(YES_AMOUNT);
+    expect(noFilled).toEqualBN(NO_AMOUNT);
+  });
+
+  it("successfully deposits if the no deposit exceeds the market amount (allow_partial = true)", async () => {
+    expect.assertions(4);
+
+    await deposit({ noAmount: intoU64BN(NO_AMOUNT + 1n), allowPartial: true })
+      .signers([user])
+      .rpc();
+
+    const { yesAmount, noAmount } = await program.account.userPosition.fetch(
+      userPosition,
+    );
+    const { yesFilled, noFilled } = await program.account.market.fetch(
+      market.publicKey,
+    );
+
+    expect(yesAmount).toEqualBN(YES_AMOUNT);
+    expect(noAmount).toEqualBN(NO_AMOUNT);
+    expect(yesFilled).toEqualBN(YES_AMOUNT);
+    expect(noFilled).toEqualBN(NO_AMOUNT);
   });
 });

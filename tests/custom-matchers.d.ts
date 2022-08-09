@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-empty-interface */
-import type { PublicKey } from '@solana/web3.js';
-import type { IntoBigInt } from './utils';
+import type { PublicKey } from "@solana/web3.js";
+import type { IntoBigInt } from "./utils";
 
 interface CustomMatchers<R = unknown> {
   /**
@@ -14,11 +14,7 @@ interface CustomMatchers<R = unknown> {
   /**
    * Checks that specific `ProgramError` is thrown inside a function.
    */
-  toThrowProgramError(code: number): R;
-  /**
-   * Checks that specific `AnchorError` is thrown inside a function.
-   */
-  toThrowAnchorError(code: number): R;
+  toThrowProgramError(code: number, program?: PublicKey): R;
   /**
    * Checks that the balance of a token account is what you expect.
    */

@@ -1,12 +1,20 @@
-anchor_version = "0.24.2"
-
-[programs.localnet]
-hh_escrow = "Yb4spZYFpgad4pDvV1mdU7pFU9vQWNeDS4degy7eR1u"
+anchor_version = "0.25.0"
 
 [provider]
 cluster = "localnet"
 wallet = "test_wallet.json"
 
-[scripts]
-test = "yarn run jest"
-pre_test_deploy = "scripts/test_deploy"
+[programs.localnet]
+hh_escrow = "Yb4spZYFpgad4pDvV1mdU7pFU9vQWNeDS4degy7eR1u"
+
+[test.validator]
+url = "devnet"
+
+[[test.validator.clone]]
+address = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+[[test.validator.clone]]
+address = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+
+[[test.validator.account]]
+address = "EhCHibyjh8nYUrX239Tc1GPv9PfVPeQY23d2JoJdQPSc"
+filename = "accounts/escrow/global2.json"

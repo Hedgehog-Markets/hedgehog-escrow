@@ -1,132 +1,136 @@
-import * as anchor from '@project-serum/anchor';
-import { Program, LangErrorCode } from '@project-serum/anchor';
-import { findProgramAddressSync } from '@project-serum/anchor/dist/cjs/utils/pubkey';
+import type { InitializeMarketParams } from "./utils";
+
+import { LangErrorCode } from "@project-serum/anchor";
 import {
   Keypair,
   PublicKey,
-  Transaction,
+  SystemProgram,
   TransactionInstruction,
-} from '@solana/web3.js';
-import type { HhEscrow } from '../../target/types/hh_escrow';
-import { intoU64BN } from '../u64';
+} from "@solana/web3.js";
+import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
+
 import {
+  spl,
+  intoU64,
+  intoU64BN,
+  unixTimestamp,
+  getBalance,
   createInitAccountInstructions,
   createInitMintInstructions,
-} from '../utils';
-import { ErrorCode, InitializeMarketParams } from './utils';
+  sendTx,
+  __throw,
+} from "../utils";
 
-describe('hh-escrow withdraw tests', () => {
-  const YES_AMOUNT = 1_000_000;
-  const NO_AMOUNT = 2_000_000;
+import {
+  ErrorCode,
+  program,
+  getAuthorityAddress,
+  getYesTokenAccountAddress,
+  getNoTokenAccountAddress,
+  getUserPositionAddress,
+} from "./utils";
 
-  // Configure the client to use the local cluster.
-  const provider = anchor.Provider.env();
-  anchor.setProvider(provider);
-  const spl = anchor.Spl.token(provider);
+const YES_AMOUNT = 1_000_000n;
+const NO_AMOUNT = 2_000_000n;
 
-  const program = anchor.workspace.HhEscrow as Program<HhEscrow>;
+const TOP_OFF = 5_000_000n;
 
-  // Parameters.
-  const closeTs = BigInt(Date.now()) / 1000n + 3600n;
-  const expiryTs = closeTs + 3600n;
-  const resolver = Keypair.generate();
-  const defaultMarketParams: InitializeMarketParams = {
-    closeTs: intoU64BN(closeTs),
-    expiryTs: intoU64BN(expiryTs),
-    resolutionDelay: 3600,
-    yesAmount: intoU64BN(YES_AMOUNT),
-    noAmount: intoU64BN(NO_AMOUNT),
-    resolver: resolver.publicKey,
-    uri: '0'.repeat(256),
-  };
-
-  // Accounts.
+describe("withdraw", () => {
   const mint = Keypair.generate();
   const user = Keypair.generate();
   const userTokenAccount = Keypair.generate();
+  const resolver = Keypair.generate();
+
   let market: Keypair,
     authority: PublicKey,
     yesTokenAccount: PublicKey,
-    yesNonce: number,
     noTokenAccount: PublicKey,
-    noNonce: number,
     userPosition: PublicKey;
 
-  // Instructions.
-  let initializeIx: TransactionInstruction;
-  let userPositionIx: TransactionInstruction;
+  let initMarketIx: TransactionInstruction,
+    userPositionIx: TransactionInstruction;
+
+  //////////////////////////////////////////////////////////////////////////////
+
+  const withdraw = () =>
+    program.methods.withdraw().accounts({
+      user: user.publicKey,
+      yesTokenAccount,
+      noTokenAccount,
+      userTokenAccount: userTokenAccount.publicKey,
+      authority,
+      market: market.publicKey,
+      userPosition,
+      tokenProgram: TOKEN_PROGRAM_ID,
+    });
+
+  //////////////////////////////////////////////////////////////////////////////
 
   beforeAll(async () => {
-    const mintIxs = await createInitMintInstructions({
-      mint: mint.publicKey,
-      mintAuthority: provider.wallet.publicKey,
-      connection: provider.connection,
-      payer: provider.wallet.publicKey,
-    });
-    const userTokenAccountIxs = await createInitAccountInstructions({
-      account: userTokenAccount.publicKey,
-      mint: mint.publicKey,
-      user: user.publicKey,
-      connection: provider.connection,
-      payer: provider.wallet.publicKey,
-    });
-
-    await provider.send(
-      new Transaction().add(...mintIxs, ...userTokenAccountIxs),
-      [mint, userTokenAccount]
+    await sendTx(
+      [
+        ...(await createInitMintInstructions({
+          mint,
+          mintAuthority: program.provider.wallet.publicKey,
+        })),
+        ...(await createInitAccountInstructions({
+          account: userTokenAccount,
+          mint,
+          user,
+        })),
+      ],
+      [mint, userTokenAccount],
     );
   });
 
   beforeEach(async () => {
     market = Keypair.generate();
-    [authority] = PublicKey.findProgramAddressSync(
-      [Buffer.from('authority'), market.publicKey.toBuffer()],
-      program.programId
-    );
-    [yesTokenAccount, yesNonce] = PublicKey.findProgramAddressSync(
-      [Buffer.from('yes'), market.publicKey.toBuffer()],
-      program.programId
-    );
-    [noTokenAccount, noNonce] = PublicKey.findProgramAddressSync(
-      [Buffer.from('no'), market.publicKey.toBuffer()],
-      program.programId
-    );
-    [userPosition] = PublicKey.findProgramAddressSync(
-      [
-        Buffer.from('user'),
-        user.publicKey.toBuffer(),
-        market.publicKey.toBuffer(),
-      ],
-      program.programId
-    );
 
-    const { value } = await provider.connection.getTokenAccountBalance(
-      userTokenAccount.publicKey
-    );
+    authority = getAuthorityAddress(market);
+    [yesTokenAccount] = getYesTokenAccountAddress(market);
+    [noTokenAccount] = getNoTokenAccountAddress(market);
+    userPosition = getUserPositionAddress(user, market);
 
     // Top off the user's token account before each test.
-    const topOff = 5_000_000n - BigInt(value.amount);
+    const topOff = TOP_OFF - intoU64(await getBalance(userTokenAccount));
     if (topOff > 0n) {
       await spl.methods
         .mintTo(intoU64BN(topOff))
         .accounts({
           mint: mint.publicKey,
-          authority: provider.wallet.publicKey,
+          authority: program.provider.wallet.publicKey,
           to: userTokenAccount.publicKey,
         })
         .rpc();
     }
 
-    initializeIx = await program.methods
-      .initializeMarket(defaultMarketParams)
+    const closeTs = unixTimestamp() + 3600n;
+    const expiryTs = closeTs + 3600n;
+
+    const params: InitializeMarketParams = {
+      closeTs: intoU64BN(closeTs),
+      expiryTs: intoU64BN(expiryTs),
+      resolutionDelay: 3600,
+      yesAmount: intoU64BN(YES_AMOUNT),
+      noAmount: intoU64BN(NO_AMOUNT),
+      resolver: resolver.publicKey,
+      uri: "0".repeat(200),
+    };
+
+    initMarketIx = await program.methods
+      .initializeMarket(params)
       .accounts({
         market: market.publicKey,
-        tokenMint: mint.publicKey,
         authority,
+        creator: program.provider.wallet.publicKey,
+        tokenMint: mint.publicKey,
         yesTokenAccount,
         noTokenAccount,
+        systemProgram: SystemProgram.programId,
+        tokenProgram: TOKEN_PROGRAM_ID,
       })
       .instruction();
+
     userPositionIx = await program.methods
       .initializeUserPosition()
       .accounts({
@@ -137,220 +141,167 @@ describe('hh-escrow withdraw tests', () => {
       .instruction();
   });
 
-  it('fails to withdraw if the outcome is not invalid', async () => {
+  //////////////////////////////////////////////////////////////////////////////
+
+  it("fails if the market is not finalized", async () => {
     expect.assertions(1);
 
     await expect(
-      program.methods
-        .withdraw()
-        .accounts({
-          user: user.publicKey,
-          yesTokenAccount,
-          noTokenAccount,
-          userTokenAccount: userTokenAccount.publicKey,
-          authority,
-          market: market.publicKey,
-          userPosition,
-        })
-        .preInstructions([initializeIx, userPositionIx])
+      withdraw()
+        .preInstructions([initMarketIx, userPositionIx])
         .signers([market, user])
-        .rpc()
-    ).rejects.toThrowAnchorError(ErrorCode.MarketNotInvalid);
-  });
-
-  it('fails to withdraw if the outcome is invalid but not finalized', async () => {
-    expect.assertions(1);
-    await program.methods
-      .updateState({ outcome: { Invalid: {} } })
-      .accounts({
-        market: market.publicKey,
-        resolver: resolver.publicKey,
-      })
-      .preInstructions([initializeIx, userPositionIx])
-      .signers([market, user, resolver])
-      .rpc();
-
-    await expect(
-      program.methods
-        .withdraw()
-        .accounts({
-          user: user.publicKey,
-          yesTokenAccount,
-          noTokenAccount,
-          userTokenAccount: userTokenAccount.publicKey,
-          authority,
-          market: market.publicKey,
-          userPosition,
-        })
-        .signers([user])
-        .rpc()
+        .rpc(),
     ).rejects.toThrowProgramError(ErrorCode.NotFinalized);
   });
 
-  it('fails to withdraw if the yes token account is incorrect', async () => {
+  it("fails if the user position is incorrect", async () => {
     expect.assertions(1);
-    const otherAccount = Keypair.generate();
+
+    const wrongUser = Keypair.generate();
+    const wrongUserPosition = getUserPositionAddress(wrongUser, market);
+
+    const userPositionIx = await program.methods
+      .initializeUserPosition()
+      .accounts({
+        user: wrongUser.publicKey,
+        market: market.publicKey,
+        userPosition: wrongUserPosition,
+      })
+      .instruction();
 
     await expect(
-      program.methods
-        .withdraw()
-        .accounts({
-          user: user.publicKey,
-          yesTokenAccount: otherAccount.publicKey,
-          noTokenAccount,
-          userTokenAccount: userTokenAccount.publicKey,
-          authority,
-          market: market.publicKey,
-          userPosition,
-        })
-        .preInstructions([initializeIx, userPositionIx])
-        .signers([market, user])
-        .rpc()
-    ).rejects.toThrowAnchorError(ErrorCode.IncorrectYesEscrow);
+      withdraw()
+        .accounts({ userPosition: wrongUserPosition })
+        .preInstructions([initMarketIx, userPositionIx])
+        .signers([market, wrongUser, user])
+        .rpc(),
+    ).rejects.toThrowProgramError(LangErrorCode.ConstraintSeeds);
   });
 
-  it('fails to withdraw if the no token account is incorrect', async () => {
+  it("fails if the yes token account is incorrect", async () => {
     expect.assertions(1);
-    const otherAccount = Keypair.generate();
+
+    const wrongTokenAccount = Keypair.generate();
 
     await expect(
-      program.methods
-        .withdraw()
-        .accounts({
-          user: user.publicKey,
-          yesTokenAccount,
-          noTokenAccount: otherAccount.publicKey,
-          userTokenAccount: userTokenAccount.publicKey,
-          authority,
-          market: market.publicKey,
-          userPosition,
-        })
-        .preInstructions([initializeIx, userPositionIx])
+      withdraw()
+        .accounts({ yesTokenAccount: wrongTokenAccount.publicKey })
+        .preInstructions([initMarketIx, userPositionIx])
         .signers([market, user])
-        .rpc()
-    ).rejects.toThrowAnchorError(ErrorCode.IncorrectNoEscrow);
+        .rpc(),
+    ).rejects.toThrowProgramError(ErrorCode.IncorrectYesEscrow);
   });
 
-  it('fails to withdraw if the authority is incorrect', async () => {
+  it("fails if the no token account is incorrect", async () => {
     expect.assertions(1);
-    const [wrongAuthority] = findProgramAddressSync(
-      [Buffer.from('authority')],
-      program.programId
-    );
+
+    const wrongTokenAccount = Keypair.generate();
 
     await expect(
-      program.methods
-        .withdraw()
-        .accounts({
-          user: user.publicKey,
-          yesTokenAccount,
-          noTokenAccount,
-          userTokenAccount: userTokenAccount.publicKey,
-          authority: wrongAuthority,
-          market: market.publicKey,
-          userPosition,
-        })
-        .preInstructions([initializeIx, userPositionIx])
+      withdraw()
+        .accounts({ noTokenAccount: wrongTokenAccount.publicKey })
+        .preInstructions([initMarketIx, userPositionIx])
         .signers([market, user])
-        .rpc()
-    ).rejects.toThrowAnchorError(LangErrorCode.ConstraintSeeds);
+        .rpc(),
+    ).rejects.toThrowProgramError(ErrorCode.IncorrectNoEscrow);
   });
 
-  it('fails to withdraw if the user token account provided is the yes token account', async () => {
+  it("fails if the authority is incorrect", async () => {
+    expect.assertions(1);
+
+    const wrongAuthority = Keypair.generate();
+
+    await expect(
+      withdraw()
+        .accounts({ authority: wrongAuthority.publicKey })
+        .preInstructions([initMarketIx, userPositionIx])
+        .signers([market, user])
+        .rpc(),
+    ).rejects.toThrowProgramError(LangErrorCode.ConstraintSeeds);
+  });
+
+  it("fails if the user token account provided is the yes token account", async () => {
     expect.assertions(1);
 
     await expect(
-      program.methods
-        .withdraw()
-        .accounts({
-          user: user.publicKey,
-          yesTokenAccount,
-          noTokenAccount,
-          userTokenAccount: yesTokenAccount,
-          authority,
-          market: market.publicKey,
-          userPosition,
-        })
-        .preInstructions([initializeIx, userPositionIx])
+      withdraw()
+        .accounts({ userTokenAccount: yesTokenAccount })
+        .preInstructions([initMarketIx, userPositionIx])
         .signers([market, user])
-        .rpc()
-    ).rejects.toThrowAnchorError(ErrorCode.UserAccountCannotBeMarketAccount);
+        .rpc(),
+    ).rejects.toThrowProgramError(ErrorCode.UserAccountCannotBeMarketAccount);
   });
 
-  it('fails to withdraw if the user token account provided is the no token account', async () => {
+  it("fails if the user token account provided is the no token account", async () => {
     expect.assertions(1);
 
     await expect(
-      program.methods
-        .withdraw()
-        .accounts({
-          user: user.publicKey,
-          yesTokenAccount,
-          noTokenAccount,
-          userTokenAccount: noTokenAccount,
-          authority,
-          market: market.publicKey,
-          userPosition,
-        })
-        .preInstructions([initializeIx, userPositionIx])
+      withdraw()
+        .accounts({ userTokenAccount: noTokenAccount })
+        .preInstructions([initMarketIx, userPositionIx])
         .signers([market, user])
-        .rpc()
-    ).rejects.toThrowAnchorError(ErrorCode.UserAccountCannotBeMarketAccount);
+        .rpc(),
+    ).rejects.toThrowProgramError(ErrorCode.UserAccountCannotBeMarketAccount);
   });
 
-  it('fails to withdraw if the user token account is not owned by the user', async () => {
+  it("fails if the user token account is not owned by the user", async () => {
     expect.assertions(1);
 
-    const newTokenAccount = Keypair.generate();
-    const newUser = Keypair.generate().publicKey;
+    const otherUser = Keypair.generate();
+    const otherTokenAccount = Keypair.generate();
+
     const newTokenAccountIxs = await createInitAccountInstructions({
-      account: newTokenAccount.publicKey,
-      mint: mint.publicKey,
-      user: newUser,
-      connection: provider.connection,
-      payer: provider.wallet.publicKey,
+      account: otherTokenAccount,
+      mint,
+      user: otherUser,
     });
 
     await expect(
-      program.methods
-        .withdraw()
-        .accounts({
-          user: user.publicKey,
-          yesTokenAccount,
-          noTokenAccount,
-          userTokenAccount: newTokenAccount.publicKey,
-          authority,
-          market: market.publicKey,
-          userPosition,
-        })
-        .preInstructions([initializeIx, userPositionIx, ...newTokenAccountIxs])
-        .signers([market, user, newTokenAccount])
-        .rpc()
-    ).rejects.toThrowAnchorError(ErrorCode.UserAccountIncorrectOwner);
+      withdraw()
+        .accounts({ userTokenAccount: otherTokenAccount.publicKey })
+        .preInstructions([initMarketIx, userPositionIx, ...newTokenAccountIxs])
+        .signers([market, user, otherTokenAccount])
+        .rpc(),
+    ).rejects.toThrowProgramError(ErrorCode.UserAccountIncorrectOwner);
   });
 
-  it('withdraws tokens for a user', async () => {
+  it("successfully withdraws tokens for a user", async () => {
     expect.assertions(12);
 
-    const initializeMarketParams = {
-      ...defaultMarketParams,
-      // Instant finalize.
-      resolutionDelay: 0,
+    const closeTs = unixTimestamp() + 3600n;
+    const expiryTs = closeTs + 3600n;
+
+    const params: InitializeMarketParams = {
+      closeTs: intoU64BN(closeTs),
+      expiryTs: intoU64BN(expiryTs),
+      resolutionDelay: 0, // Instantly finalize.
+      yesAmount: intoU64BN(YES_AMOUNT),
+      noAmount: intoU64BN(NO_AMOUNT),
+      resolver: resolver.publicKey,
+      uri: "0".repeat(200),
     };
-    initializeIx = await program.methods
-      .initializeMarket(initializeMarketParams)
+
+    const initMarketIx = await program.methods
+      .initializeMarket(params)
       .accounts({
         market: market.publicKey,
-        tokenMint: mint.publicKey,
         authority,
+        creator: program.provider.wallet.publicKey,
+        tokenMint: mint.publicKey,
         yesTokenAccount,
         noTokenAccount,
+        systemProgram: SystemProgram.programId,
+        tokenProgram: TOKEN_PROGRAM_ID,
       })
       .instruction();
+
+    const yesDeposit = 1n;
+    const noDeposit = 2n;
+
     await program.methods
       .deposit({
-        yesAmount: intoU64BN(1),
-        noAmount: intoU64BN(2),
+        yesAmount: intoU64BN(yesDeposit),
+        noAmount: intoU64BN(noDeposit),
         allowPartial: true,
       })
       .accounts({
@@ -361,28 +312,21 @@ describe('hh-escrow withdraw tests', () => {
         userTokenAccount: userTokenAccount.publicKey,
         userPosition,
       })
-      .preInstructions([initializeIx, userPositionIx])
+      .preInstructions([initMarketIx, userPositionIx])
       .signers([market, user])
       .rpc();
 
-    let yesAcc = await provider.connection.getTokenAccountBalance(
-      yesTokenAccount
-    );
-    let noAcc = await provider.connection.getTokenAccountBalance(
-      noTokenAccount
-    );
-    let userAcc = await provider.connection.getTokenAccountBalance(
-      userTokenAccount.publicKey
-    );
-    let userPositionAccount = await program.account.userPosition.fetch(
-      userPosition
+    await expect(yesTokenAccount).toHaveBalance(yesDeposit);
+    await expect(noTokenAccount).toHaveBalance(noDeposit);
+    await expect(userTokenAccount).toHaveBalance(
+      TOP_OFF - yesDeposit - noDeposit,
     );
 
-    expect(yesAcc.value.amount).toBe('1');
-    expect(noAcc.value.amount).toBe('2');
-    expect(userAcc.value.amount).toBe('4999997');
-    expect(userPositionAccount.yesAmount).toEqualBN(1);
-    expect(userPositionAccount.noAmount).toEqualBN(2);
+    let { yesAmount: yesPosition, noAmount: noPosition } =
+      await program.account.userPosition.fetch(userPosition);
+
+    expect(yesPosition).toEqualBN(yesDeposit);
+    expect(noPosition).toEqualBN(noDeposit);
 
     await program.methods
       .updateState({ outcome: { Invalid: {} } })
@@ -393,30 +337,24 @@ describe('hh-escrow withdraw tests', () => {
       .signers([resolver])
       .rpc();
 
-    let marketAccount = await program.account.market.fetch(market.publicKey);
-    expect(marketAccount.finalized).toBeFalsy();
+    let { finalized } = await program.account.market.fetch(market.publicKey);
 
-    await program.methods
-      .withdraw()
-      .accounts({
-        user: user.publicKey,
-        yesTokenAccount,
-        noTokenAccount,
-        userTokenAccount: userTokenAccount.publicKey,
-        authority: authority,
-        market: market.publicKey,
-        userPosition,
-      })
-      .signers([user])
-      .rpc();
+    expect(finalized).toBe(false);
 
-    marketAccount = await program.account.market.fetch(market.publicKey);
+    await withdraw().signers([user]).rpc();
 
-    expect(yesAcc.value.amount).toBe('1');
-    expect(noAcc.value.amount).toBe('2');
-    expect(userAcc.value.amount).toBe('4999997');
-    expect(userPositionAccount.yesAmount).toEqualBN(1);
-    expect(userPositionAccount.noAmount).toEqualBN(2);
-    expect(marketAccount.finalized).toBeTruthy();
+    await expect(yesTokenAccount).toHaveBalance(0n);
+    await expect(noTokenAccount).toHaveBalance(0n);
+    await expect(userTokenAccount).toHaveBalance(TOP_OFF);
+
+    ({ yesAmount: yesPosition, noAmount: noPosition } =
+      await program.account.userPosition.fetch(userPosition));
+
+    expect(yesPosition).toEqualBN(0n);
+    expect(noPosition).toEqualBN(0n);
+
+    ({ finalized } = await program.account.market.fetch(market.publicKey));
+
+    expect(finalized).toBe(true);
   });
 });

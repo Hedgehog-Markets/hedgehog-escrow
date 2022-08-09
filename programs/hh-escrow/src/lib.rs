@@ -1,23 +1,19 @@
 use anchor_lang::prelude::*;
-use solana_program::entrypoint::ProgramResult;
+
+#[macro_use]
+mod macros;
+
+mod utils;
 
 pub mod error;
 pub mod instructions;
 pub mod state;
-pub mod utils;
 
 use crate::instructions::*;
 
+pub use crate::error::ErrorCode;
+
 declare_id!("Yb4spZYFpgad4pDvV1mdU7pFU9vQWNeDS4degy7eR1u");
-
-#[derive(Clone)]
-pub struct HhEscrow;
-
-impl Id for HhEscrow {
-    fn id() -> Pubkey {
-        ID
-    }
-}
 
 #[program]
 pub mod hh_escrow {
@@ -26,45 +22,45 @@ pub mod hh_escrow {
     pub fn initialize_market(
         ctx: Context<InitializeMarket>,
         params: InitializeMarketParams,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         instructions::initialize_market::handler(ctx, params)
     }
 
-    pub fn initialize_user_position(ctx: Context<InitializeUserPosition>) -> ProgramResult {
+    pub fn initialize_user_position(ctx: Context<InitializeUserPosition>) -> Result<()> {
         instructions::initialize_user_position::handler(ctx)
     }
 
-    pub fn deposit(ctx: Context<Deposit>, params: DepositParams) -> ProgramResult {
+    pub fn deposit(ctx: Context<Deposit>, params: DepositParams) -> Result<()> {
         instructions::deposit::handler(ctx, params)
     }
 
-    pub fn update_state(ctx: Context<UpdateState>, params: UpdateStateParams) -> ProgramResult {
+    pub fn update_state(ctx: Context<UpdateState>, params: UpdateStateParams) -> Result<()> {
         instructions::update_state::handler(ctx, params)
     }
 
-    pub fn withdraw(ctx: Context<Withdraw>) -> ProgramResult {
+    pub fn withdraw(ctx: Context<Withdraw>) -> Result<()> {
         instructions::withdraw::handler(ctx)
     }
 
     pub fn initialize_global_state(
         ctx: Context<InitializeGlobalState>,
         params: InitializeGlobalStateParams,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         instructions::initialize_global_state::handler(ctx, params)
     }
 
-    pub fn claim(ctx: Context<Claim>) -> ProgramResult {
+    pub fn claim(ctx: Context<Claim>) -> Result<()> {
         instructions::claim::handler(ctx)
     }
 
     pub fn set_global_state(
         ctx: Context<SetGlobalState>,
         params: SetGlobalStateParams,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         instructions::set_global_state::handler(ctx, params)
     }
 
-    pub fn resolver_acknowledge(ctx: Context<ResolverAcknowledge>) -> ProgramResult {
+    pub fn resolver_acknowledge(ctx: Context<ResolverAcknowledge>) -> Result<()> {
         instructions::resolver_acknowledge::handler(ctx)
     }
 }

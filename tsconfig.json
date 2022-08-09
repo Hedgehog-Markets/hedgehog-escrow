@@ -17,5 +17,5 @@
     "strict": true,
     "exactOptionalPropertyTypes": true
   },
-  "include": ["tests/**/*.ts", "migrations/**/*.ts"]
+  "include": ["tests/**/*.ts", "migrations/**/*.ts", "scripts/**/*.ts"]
 }

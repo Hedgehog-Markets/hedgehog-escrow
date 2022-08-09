@@ -1,61 +1,57 @@
-import * as anchor from '@project-serum/anchor';
-import type { Program } from '@project-serum/anchor';
+import type { InitializeMarketParams } from "./utils";
+
+import { Keypair, SystemProgram } from "@solana/web3.js";
+
 import {
-  Keypair,
-  PublicKey,
-  SendTransactionError,
-  Transaction,
-} from '@solana/web3.js';
-import type { HhEscrow } from '../../target/types/hh_escrow';
-import { intoU64BN } from '../u64';
-import { createInitMintInstructions } from '../utils';
-import type { InitializeMarketParams } from './utils';
+  intoU64BN,
+  unixTimestamp,
+  createInitMintInstructions,
+  __throw,
+} from "../utils";
 
-describe('initialize user position', () => {
-  // Configure the client to use the local cluster.
-  const provider = anchor.Provider.env();
-  anchor.setProvider(provider);
+import {
+  program,
+  getAuthorityAddress,
+  getYesTokenAccountAddress,
+  getNoTokenAccountAddress,
+  getUserPositionAddress,
+} from "./utils";
 
-  const program = anchor.workspace.HhEscrow as Program<HhEscrow>;
-  const closeTs = BigInt(Date.now()) / 1000n + 3600n;
-  const expiryTs = closeTs + 3600n;
-  const resolver = Keypair.generate();
-  const initializeMarketParams: InitializeMarketParams = {
-    closeTs: intoU64BN(closeTs),
-    expiryTs: intoU64BN(expiryTs),
-    resolutionDelay: 3600,
-    yesAmount: intoU64BN(1_000_000),
-    noAmount: intoU64BN(2_000_000),
-    resolver: resolver.publicKey,
-    uri: '0'.repeat(256),
-  };
-  const mint = Keypair.generate();
+const YES_AMOUNT = 1_000_000n;
+const NO_AMOUNT = 2_000_000n;
+
+describe("initialize user position", () => {
   const market = Keypair.generate();
-  const [authority] = PublicKey.findProgramAddressSync(
-    [Buffer.from('authority'), market.publicKey.toBuffer()],
-    program.programId
-  );
-  const [yesTokenAccount] = PublicKey.findProgramAddressSync(
-    [Buffer.from('yes'), market.publicKey.toBuffer()],
-    program.programId
-  );
-  const [noTokenAccount] = PublicKey.findProgramAddressSync(
-    [Buffer.from('no'), market.publicKey.toBuffer()],
-    program.programId
-  );
+  const mint = Keypair.generate();
+  const resolver = Keypair.generate();
+
+  const authority = getAuthorityAddress(market);
+  const [yesTokenAccount] = getYesTokenAccountAddress(market);
+  const [noTokenAccount] = getNoTokenAccountAddress(market);
+
+  //////////////////////////////////////////////////////////////////////////////
 
   beforeAll(async () => {
-    const mintIxs = await createInitMintInstructions({
-      mint: mint.publicKey,
-      mintAuthority: provider.wallet.publicKey,
-      connection: provider.connection,
-      payer: provider.wallet.publicKey,
+    const closeTs = unixTimestamp() + 3600n;
+    const expiryTs = closeTs + 3600n;
+
+    const params: InitializeMarketParams = {
+      closeTs: intoU64BN(closeTs),
+      expiryTs: intoU64BN(expiryTs),
+      resolutionDelay: 3600,
+      yesAmount: intoU64BN(YES_AMOUNT),
+      noAmount: intoU64BN(NO_AMOUNT),
+      resolver: resolver.publicKey,
+      uri: "0".repeat(200),
+    };
+
+    const preIxs = await createInitMintInstructions({
+      mint,
+      mintAuthority: program.provider.wallet.publicKey,
     });
 
-    await provider.send(new Transaction().add(...mintIxs), [mint]);
-
     await program.methods
-      .initializeMarket(initializeMarketParams)
+      .initializeMarket(params)
       .accounts({
         market: market.publicKey,
         tokenMint: mint.publicKey,
@@ -63,66 +59,59 @@ describe('initialize user position', () => {
         yesTokenAccount,
         noTokenAccount,
       })
-      .signers([market])
+      .preInstructions(preIxs)
+      .signers([mint, market])
       .rpc();
   });
 
-  it('initializes a user position correctly', async () => {
+  //////////////////////////////////////////////////////////////////////////////
+
+  it("successfully initializes a user position", async () => {
     expect.assertions(3);
 
     const user = Keypair.generate();
-    const [userPosition] = PublicKey.findProgramAddressSync(
-      [
-        Buffer.from('user'),
-        user.publicKey.toBuffer(),
-        market.publicKey.toBuffer(),
-      ],
-      program.programId
-    );
+    const userPosition = getUserPositionAddress(user, market);
+
     await program.methods
       .initializeUserPosition()
       .accounts({
-        user: user.publicKey,
-        payer: provider.wallet.publicKey,
-        market: market.publicKey,
         userPosition,
+        market: market.publicKey,
+        user: user.publicKey,
+        payer: program.provider.wallet.publicKey,
+        systemProgram: SystemProgram.programId,
       })
       .signers([user])
       .rpc();
 
-    const userPositionAccount = await program.account.userPosition.fetch(
-      userPosition
-    );
+    const info = await program.account.userPosition.fetch(userPosition);
 
-    expect(userPositionAccount.market).toEqualPubkey(market.publicKey);
-    expect(userPositionAccount.yesAmount).toEqualBN(0);
-    expect(userPositionAccount.noAmount).toEqualBN(0);
+    expect(info.market).toEqualPubkey(market.publicKey);
+    expect(info.yesAmount).toEqualBN(0n);
+    expect(info.noAmount).toEqualBN(0n);
   });
 
-  it('fails to initialize a user position if the seeds are incorrect', async () => {
+  it("fails if the seeds are incorrect", async () => {
     expect.assertions(1);
 
     const user = Keypair.generate();
-    const [userPosition] = PublicKey.findProgramAddressSync(
-      [
-        Buffer.from('user'),
-        market.publicKey.toBuffer(),
-        user.publicKey.toBuffer(),
-      ],
-      program.programId
-    );
+    const wrongUser = Keypair.generate();
+    const wrongUserPosition = getUserPositionAddress(wrongUser, market);
 
     await expect(
       program.methods
         .initializeUserPosition()
         .accounts({
-          user: user.publicKey,
-          payer: provider.wallet.publicKey,
+          userPosition: wrongUserPosition,
           market: market.publicKey,
-          userPosition,
+          user: user.publicKey,
+          payer: program.provider.wallet.publicKey,
+          systemProgram: SystemProgram.programId,
         })
         .signers([user])
-        .rpc()
-    ).rejects.toThrow(SendTransactionError);
+        .rpc(),
+    ).rejects.toThrow(
+      "Cross-program invocation with unauthorized signer or writable account",
+    );
   });
 });
