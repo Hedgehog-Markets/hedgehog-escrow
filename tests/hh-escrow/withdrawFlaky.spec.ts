@@ -228,7 +228,7 @@ describeFlaky("withdraw (clock-dependent)", () => {
 
     const preIxs = [
       await program.methods
-        .updateState({ outcome: { Yes: {} } })
+        .updateOutcome({ outcome: { Yes: {} } })
         .accounts({ market: market.publicKey, resolver: resolver.publicKey })
         .instruction(),
     ];

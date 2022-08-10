@@ -34,8 +34,8 @@ pub mod hh_escrow {
         instructions::deposit::handler(ctx, params)
     }
 
-    pub fn update_state(ctx: Context<UpdateState>, params: UpdateStateParams) -> Result<()> {
-        instructions::update_state::handler(ctx, params)
+    pub fn update_outcome(ctx: Context<UpdateOutcome>, params: UpdateOutcomeParams) -> Result<()> {
+        instructions::update_outcome::handler(ctx, params)
     }
 
     pub fn withdraw(ctx: Context<Withdraw>) -> Result<()> {

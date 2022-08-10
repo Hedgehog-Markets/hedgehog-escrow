@@ -6,14 +6,14 @@ use crate::error::ErrorCode;
 use crate::state::{Market, Outcome};
 
 #[derive(Clone, AnchorDeserialize, AnchorSerialize)]
-pub struct UpdateStateParams {
+pub struct UpdateOutcomeParams {
     /// The outcome.
     pub outcome: Outcome,
 }
 
 #[derive(Accounts)]
-#[instruction(params: UpdateStateParams)]
-pub struct UpdateState<'info> {
+#[instruction(params: UpdateOutcomeParams)]
+pub struct UpdateOutcome<'info> {
     /// The market to update.
     #[account(mut)]
     pub market: Account<'info, Market>,
@@ -21,7 +21,7 @@ pub struct UpdateState<'info> {
     pub resolver: Signer<'info>,
 }
 
-impl UpdateState<'_> {
+impl UpdateOutcome<'_> {
     /// Verify that the signing resolver is the market resolver.
     fn verify_resolver(&self) -> Result<()> {
         if *self.resolver.key_ref() != self.market.resolver {
@@ -58,8 +58,8 @@ impl UpdateState<'_> {
     }
 }
 
-pub fn handler(ctx: Context<UpdateState>, params: UpdateStateParams) -> Result<()> {
-    let UpdateStateParams { outcome } = params;
+pub fn handler(ctx: Context<UpdateOutcome>, params: UpdateOutcomeParams) -> Result<()> {
+    let UpdateOutcomeParams { outcome } = params;
 
     let (is_finalized, now) = ctx.accounts.market.is_finalized_and_ts()?;
 

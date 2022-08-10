@@ -322,8 +322,8 @@ describeFlaky("claim (clock-dependent)", () => {
 
     await sleepUntil(expiryTs, 5_000);
 
-    const updateStateIx = await program.methods
-      .updateState({ outcome: { No: {} } })
+    const updateOutcomeIx = await program.methods
+      .updateOutcome({ outcome: { No: {} } })
       .accounts({
         market: market.publicKey,
         resolver: resolver.publicKey,
@@ -331,7 +331,7 @@ describeFlaky("claim (clock-dependent)", () => {
       .instruction();
 
     await claim()
-      .preInstructions([updateStateIx])
+      .preInstructions([updateOutcomeIx])
       .signers([user, resolver])
       .rpc();
 
