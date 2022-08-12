@@ -1,5 +1,7 @@
 use anchor_lang::prelude::*;
 
+use common::traits::KeyRef;
+
 use crate::state::{Market, UserPosition};
 
 /// Initializes a [`UserPosition`] account for the user.
@@ -12,7 +14,7 @@ pub struct InitializeUserPosition<'info> {
     #[account(
         init,
         payer = payer,
-        seeds = [b"user", user.key().as_ref(), market.key().as_ref()],
+        seeds = [b"user", user.key_ref().as_ref(), market.key_ref().as_ref()],
         bump,
         space = 8 + UserPosition::LEN,
     )]
