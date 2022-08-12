@@ -668,6 +668,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperspace-resolver"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "borsh",
+ "common",
+ "hh-escrow",
+ "solana-program",
+]
+
+[[package]]
 name = "im"
 version = "15.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
