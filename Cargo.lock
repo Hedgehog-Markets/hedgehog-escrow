@@ -675,6 +675,7 @@ dependencies = [
  "borsh",
  "common",
  "hh-escrow",
+ "quickcheck",
  "solana-program",
 ]
 

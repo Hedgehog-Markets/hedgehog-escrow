@@ -2,7 +2,6 @@ use anchor_lang::prelude::*;
 
 #[macro_use]
 mod macros;
-
 mod utils;
 
 pub mod error;

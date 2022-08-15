@@ -11,7 +11,9 @@ use crate::state::{NftFloor, NFT_FLOOR_SEED};
 use crate::utils;
 
 #[derive(Clone, AnchorDeserialize, AnchorSerialize)]
-pub struct InitializeNftFloorResolverParams {
+pub struct InitializeNftFloorParams {
+    /// The public key of the resolver authority.
+    pub authority: Pubkey,
     /// The time at which to resolve the market.
     pub timestamp: i64,
     /// The floor price in lamports to compare to when resolving.
@@ -21,7 +23,7 @@ pub struct InitializeNftFloorResolverParams {
 }
 
 #[derive(Accounts)]
-pub struct InitializeNftFloorResolver<'info> {
+pub struct InitializeNftFloor<'info> {
     /// The metadata account for the resolver.
     ///
     /// CHECK: This account will be initialized in the handler.
@@ -44,12 +46,16 @@ pub struct InitializeNftFloorResolver<'info> {
     pub system_program: Program<'info, System>,
 }
 
-impl<'info> InitializeNftFloorResolver<'info> {
+impl<'info> InitializeNftFloor<'info> {
     /// Initializes the resolver account.
     ///
     /// This has to be done manually because the resolver account size varies
     /// depending on the project ID.
-    fn init_resolver(&self, project_id: &str) -> Result<Account<'info, NftFloor>> {
+    fn init_resolver(
+        &self,
+        signer_seeds: &[&[&[u8]]],
+        project_id: &str,
+    ) -> Result<Account<'info, NftFloor>> {
         let resolver = &*self.resolver;
         let payer = &*self.payer;
 
@@ -57,8 +63,6 @@ impl<'info> InitializeNftFloorResolver<'info> {
 
         let required_lamports = Rent::get()?.minimum_balance(space);
         let lamports = resolver.lamports();
-
-        let signer_seeds = &[NFT_FLOOR_SEED, self.market.key_ref().as_ref()];
 
         if lamports == 0 {
             // Create a new account.
@@ -71,7 +75,7 @@ impl<'info> InitializeNftFloorResolver<'info> {
                     &crate::ID,
                 ),
                 &[payer.to_account_info(), resolver.to_account_info()],
-                &[signer_seeds],
+                signer_seeds,
             )?;
         } else {
             let required_lamports = required_lamports.max(1).saturating_sub(lamports);
@@ -94,14 +98,14 @@ impl<'info> InitializeNftFloorResolver<'info> {
             solana_program::program::invoke_signed(
                 &solana_program::system_instruction::allocate(resolver.key, space as u64),
                 resolver_info,
-                &[signer_seeds],
+                signer_seeds,
             )?;
 
             // Assign this program as the account owner.
             solana_program::program::invoke_signed(
                 &solana_program::system_instruction::assign(resolver.key, &crate::ID),
                 resolver_info,
-                &[signer_seeds],
+                signer_seeds,
             )?;
         }
 
@@ -109,22 +113,24 @@ impl<'info> InitializeNftFloorResolver<'info> {
     }
 
     /// Acknowledge the market.
-    fn resolver_acknowledge(&self) -> Result<()> {
+    fn resolver_acknowledge(&self, signer_seeds: &[&[&[u8]]]) -> Result<()> {
         let accounts = hh_escrow::cpi::accounts::ResolverAcknowledge {
             market: self.market.to_account_info(),
             resolver: self.resolver.to_account_info(),
         };
-        let ctx = CpiContext::new(self.escrow_program.to_account_info(), accounts);
+        let ctx = CpiContext::new_with_signer(
+            self.escrow_program.to_account_info(),
+            accounts,
+            signer_seeds,
+        );
 
         hh_escrow::cpi::resolver_acknowledge(ctx)
     }
 }
 
-pub fn handler(
-    ctx: Context<InitializeNftFloorResolver>,
-    params: InitializeNftFloorResolverParams,
-) -> Result<()> {
-    let InitializeNftFloorResolverParams {
+pub fn handler(ctx: Context<InitializeNftFloor>, params: InitializeNftFloorParams) -> Result<()> {
+    let InitializeNftFloorParams {
+        authority,
         timestamp,
         floor_price,
         project_id,
@@ -135,9 +141,17 @@ pub fn handler(
         return Err(error!(ErrorCode::TimestampPassed));
     }
 
-    // Create or allocate space for the resolver account.
-    let mut resolver = ctx.accounts.init_resolver(&project_id)?;
+    let bump = get_bump!(ctx, resolver)?;
+    let signer_seeds = &[
+        NFT_FLOOR_SEED,
+        ctx.accounts.market.key_ref().as_ref(),
+        &[bump],
+    ];
 
+    // Create or allocate space for the resolver account.
+    let mut resolver = ctx.accounts.init_resolver(&[signer_seeds], &project_id)?;
+
+    resolver.authority = authority;
     resolver.market = ctx.accounts.market.key();
     resolver.timestamp = timestamp;
     resolver.floor_price = floor_price;
@@ -147,7 +161,7 @@ pub fn handler(
     resolver.exit(&crate::ID)?;
 
     // Acknowledge the market.
-    ctx.accounts.resolver_acknowledge()?;
+    ctx.accounts.resolver_acknowledge(&[signer_seeds])?;
 
     Ok(())
 }

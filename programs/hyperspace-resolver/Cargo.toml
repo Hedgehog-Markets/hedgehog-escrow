@@ -20,9 +20,12 @@ cpi = ["no-entrypoint"]
 
 [dependencies]
 common = { path = "../../libs/common" }
-hh-escrow = { path = "../hh-escrow", features = ["cpi"]}
+hh-escrow = { path = "../hh-escrow", features = ["cpi"] }
 
 anchor-lang = "0.25.0"
 solana-program = "1.10"
 
 borsh = { version = "0.9.3", features = ["const-generics"] }
+
+[dev-dependencies]
+quickcheck = "1.0"

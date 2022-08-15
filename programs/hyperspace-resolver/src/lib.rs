@@ -1,5 +1,7 @@
 use anchor_lang::prelude::*;
 
+#[macro_use]
+mod macros;
 mod utils;
 
 pub mod error;
@@ -18,9 +20,16 @@ pub mod hyperspace_resolver {
     use super::*;
 
     pub fn initialize_nft_floor(
-        ctx: Context<InitializeNftFloorResolver>,
-        params: InitializeNftFloorResolverParams,
+        ctx: Context<InitializeNftFloor>,
+        params: InitializeNftFloorParams,
     ) -> Result<()> {
         instructions::initialize_nft_floor::handler(ctx, params)
+    }
+
+    pub fn resolve_nft_floor(
+        ctx: Context<ResolveNftFloor>,
+        params: ResolveNftFloorParams,
+    ) -> Result<()> {
+        instructions::resolve_nft_floor::handler(ctx, params)
     }
 }
