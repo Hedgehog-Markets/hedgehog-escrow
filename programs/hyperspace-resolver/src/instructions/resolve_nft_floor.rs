@@ -20,7 +20,7 @@ pub struct ResolveNftFloor<'info> {
     #[account(seeds = [NFT_FLOOR_SEED, market.key_ref().as_ref()], bump)]
     pub resolver: Account<'info, NftFloor>,
     /// The market to resolve.
-    #[account(constraint = market.resolver == *resolver.key_ref() @ ErrorCode::IncorrectResolver)]
+    #[account(mut, constraint = market.resolver == *resolver.key_ref() @ ErrorCode::IncorrectResolver)]
     pub market: Account<'info, Market>,
     /// The resolver authority.
     #[account(address = resolver.authority)]

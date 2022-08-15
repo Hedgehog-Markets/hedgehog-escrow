@@ -12,8 +12,7 @@ use crate::instructions::*;
 
 pub use crate::error::ErrorCode;
 
-// TODO: Update this to the actual program id.
-declare_id!("D8hrkYK4T2NAnJzRduu7uc9kLSEPgh8y6RAXB5J9Q8G5");
+declare_id!("CyX3buQXyW939M5LReVhPGwcTDoPWMAdArehA2aqVRvP");
 
 #[program]
 pub mod hyperspace_resolver {

@@ -30,15 +30,11 @@ pub struct InitializeNftFloor<'info> {
     #[account(mut, seeds = [NFT_FLOOR_SEED, market.key_ref().as_ref()], bump)]
     pub resolver: UncheckedAccount<'info>,
     /// The market to resolve.
-    #[account(constraint = market.resolver == *resolver.key_ref() @ ErrorCode::IncorrectResolver)]
+    #[account(mut, constraint = market.resolver == *resolver.key_ref() @ ErrorCode::IncorrectResolver)]
     pub market: Account<'info, Market>,
     /// The market creator.
     #[account(address = market.creator @ ErrorCode::IncorrectCreator)]
     pub creator: Signer<'info>,
-
-    /// The payer for the transaction.
-    #[account(mut)]
-    pub payer: Signer<'info>,
 
     /// The escrow program.
     pub escrow_program: Program<'info, HhEscrow>,
@@ -57,7 +53,7 @@ impl<'info> InitializeNftFloor<'info> {
         project_id: &str,
     ) -> Result<Account<'info, NftFloor>> {
         let resolver = &*self.resolver;
-        let payer = &*self.payer;
+        let payer = &*self.creator;
 
         let space = 8 + NftFloor::account_size(project_id);
 
