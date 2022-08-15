@@ -1,6 +1,9 @@
 use anchor_lang::prelude::*;
 use solana_program::pubkey::PUBKEY_BYTES;
 
+/// Seed used to derive the [`NftFloor`] PDA.
+pub const NFT_FLOOR_SEED: &[u8] = b"nft_floor";
+
 /// Metadata account for resolving a market based on NFT floor price.
 ///
 /// The market will be resolved to [`Yes`] if the NFT floor price at

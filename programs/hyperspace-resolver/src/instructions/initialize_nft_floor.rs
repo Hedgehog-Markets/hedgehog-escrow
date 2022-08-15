@@ -1,3 +1,5 @@
+use std::slice;
+
 use anchor_lang::prelude::*;
 
 use common::traits::KeyRef;
@@ -5,7 +7,7 @@ use hh_escrow::program::HhEscrow;
 use hh_escrow::state::Market;
 
 use crate::error::ErrorCode;
-use crate::state::NftFloor;
+use crate::state::{NftFloor, NFT_FLOOR_SEED};
 use crate::utils;
 
 #[derive(Clone, AnchorDeserialize, AnchorSerialize)]
@@ -23,7 +25,7 @@ pub struct InitializeNftFloorResolver<'info> {
     /// The metadata account for the resolver.
     ///
     /// CHECK: This account will be initialized in the handler.
-    #[account(mut, seeds = [b"nft_floor", market.key_ref().as_ref()], bump)]
+    #[account(mut, seeds = [NFT_FLOOR_SEED, market.key_ref().as_ref()], bump)]
     pub resolver: UncheckedAccount<'info>,
     /// The market to resolve.
     #[account(constraint = market.resolver == *resolver.key_ref() @ ErrorCode::IncorrectResolver)]
@@ -56,7 +58,7 @@ impl<'info> InitializeNftFloorResolver<'info> {
         let required_lamports = Rent::get()?.minimum_balance(space);
         let lamports = resolver.lamports();
 
-        let signer_seeds = &[b"nft_floor", self.market.key_ref().as_ref()];
+        let signer_seeds = &[NFT_FLOOR_SEED, self.market.key_ref().as_ref()];
 
         if lamports == 0 {
             // Create a new account.
@@ -85,17 +87,20 @@ impl<'info> InitializeNftFloorResolver<'info> {
                 )?;
             }
 
+            // Avoid cloning resolver account info again.
+            let resolver_info = slice::from_ref(resolver);
+
             // Allocate space for the account.
             solana_program::program::invoke_signed(
                 &solana_program::system_instruction::allocate(resolver.key, space as u64),
-                &[resolver.to_account_info()],
+                resolver_info,
                 &[signer_seeds],
             )?;
 
             // Assign this program as the account owner.
             solana_program::program::invoke_signed(
                 &solana_program::system_instruction::assign(resolver.key, &crate::ID),
-                &[resolver.to_account_info()],
+                resolver_info,
                 &[signer_seeds],
             )?;
         }
