@@ -1,4 +1,3 @@
-import { toBytesBE, fromBytesLE } from "bigint-utils";
 import BN, { isBN } from "bn.js";
 
 export type IntoU64 = bigint | number | boolean | string | BN;
