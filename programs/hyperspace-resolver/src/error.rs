@@ -6,6 +6,8 @@ pub enum ErrorCode {
     IncorrectResolver,
     #[msg("Creator does not match the market creator address")]
     IncorrectCreator,
+    #[msg("Authority does not match the resolver authority address")]
+    IncorrectAuthority,
     #[msg("Cannot create resolver for timestamp that has already passed")]
     TimestampPassed,
     #[msg("Cannot resolve before timestamp")]

@@ -23,7 +23,7 @@ pub struct ResolveNftFloor<'info> {
     #[account(mut, constraint = market.resolver == *resolver.key_ref() @ ErrorCode::IncorrectResolver)]
     pub market: Account<'info, Market>,
     /// The resolver authority.
-    #[account(address = resolver.authority)]
+    #[account(address = resolver.authority @ ErrorCode::IncorrectAuthority)]
     pub authority: Signer<'info>,
 
     /// The escrow program.
