@@ -128,7 +128,8 @@ describe("claim", () => {
   it("fails if the global state address is incorrect", async () => {
     expect.assertions(1);
 
-    // This is painful because anchor attempts to deserialize the account before checking the constraints.
+    // This is painful because anchor attempts to deserialize the account before
+    // checking the seeds constraint.
 
     const [wrongGlobalState] = PublicKey.findProgramAddressSync(
       [Buffer.from("global2")],
