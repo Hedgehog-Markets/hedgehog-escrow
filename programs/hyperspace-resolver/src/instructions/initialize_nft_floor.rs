@@ -31,7 +31,7 @@ pub struct InitializeNftFloor<'info> {
     #[account(mut, constraint = market.resolver == *resolver.key_ref() @ ErrorCode::IncorrectResolver)]
     pub market: Account<'info, Market>,
     /// The market creator.
-    #[account(address = market.creator @ ErrorCode::IncorrectCreator)]
+    #[account(mut, address = market.creator @ ErrorCode::IncorrectCreator)]
     pub creator: Signer<'info>,
 
     /// The escrow program.
