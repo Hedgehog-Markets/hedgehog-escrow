@@ -18,8 +18,7 @@ import {
   createInitAccountInstructions,
   createInitMintInstructions,
   sendTx,
-  tryGetOnChainTimestamp,
-  sleep,
+  chain,
   __throw,
 } from "../utils";
 
@@ -102,30 +101,6 @@ describeFlaky("update state (clock-dependent)", () => {
       });
   };
 
-  const sleepUntil = async (ts: number, timeoutMs: number) => {
-    let timedOut = false;
-
-    const timeout = sleep(timeoutMs).then(() => {
-      timedOut = true;
-      throw new Error("Timeout out waiting for clock progression");
-    });
-
-    const wait = (async () => {
-      while (!timedOut) {
-        await sleep(100);
-
-        const time = await tryGetOnChainTimestamp();
-        if (ts <= time) {
-          return;
-        }
-      }
-
-      throw new Error("Timeout out waiting for clock progression");
-    })();
-
-    await Promise.race([wait, timeout]);
-  };
-
   //////////////////////////////////////////////////////////////////////////////
 
   beforeAll(async () => {
@@ -205,7 +180,7 @@ describeFlaky("update state (clock-dependent)", () => {
     async ({ outcome }) => {
       expect.assertions(1);
 
-      const time = await tryGetOnChainTimestamp();
+      const time = await chain.blockTimestamp();
 
       const preIxs = [
         await initMarket({ closeTs: intoU64BN(time + 3600) }).instruction(),
@@ -230,7 +205,7 @@ describeFlaky("update state (clock-dependent)", () => {
 
     const wrongResolver = Keypair.generate();
 
-    const time = await tryGetOnChainTimestamp();
+    const time = await chain.blockTimestamp();
 
     const preIxs = [
       await initMarket({ closeTs: intoU64BN(time + 3600) }).instruction(),
@@ -254,7 +229,7 @@ describeFlaky("update state (clock-dependent)", () => {
   it("successfully updates to invalid before market has expired", async () => {
     expect.assertions(2);
 
-    const time = await tryGetOnChainTimestamp();
+    const time = await chain.blockTimestamp();
 
     const preIxs = [
       await initMarket({ closeTs: intoU64BN(time + 3600) }).instruction(),
@@ -279,7 +254,7 @@ describeFlaky("update state (clock-dependent)", () => {
   it("successfully updates to open before market has expired", async () => {
     expect.assertions(2);
 
-    const time = await tryGetOnChainTimestamp();
+    const time = await chain.blockTimestamp();
 
     const preIxs = [
       await initMarket({ closeTs: intoU64BN(time + 3600) }).instruction(),
@@ -311,7 +286,7 @@ describeFlaky("update state (clock-dependent)", () => {
   it("fails to update to open after market has expired", async () => {
     expect.assertions(1);
 
-    const time = await tryGetOnChainTimestamp();
+    const time = await chain.blockTimestamp();
     const expiryTs = time + 2;
 
     const preIxs = [
@@ -333,7 +308,7 @@ describeFlaky("update state (clock-dependent)", () => {
       .signers([market, user, resolver])
       .rpc();
 
-    await sleepUntil(expiryTs, 5_000);
+    await chain.sleepUntil(expiryTs);
 
     await expect(
       program.methods
@@ -356,7 +331,7 @@ describeFlaky("update state (clock-dependent)", () => {
     async ({ outcome }) => {
       expect.assertions(2);
 
-      const time = await tryGetOnChainTimestamp();
+      const time = await chain.blockTimestamp();
       const expiryTs = time + 2;
 
       await sendTx(
@@ -371,7 +346,7 @@ describeFlaky("update state (clock-dependent)", () => {
         [market, user],
       );
 
-      await sleepUntil(expiryTs, 5_000);
+      await chain.sleepUntil(expiryTs);
 
       await program.methods
         .updateOutcome({ outcome })
@@ -392,7 +367,7 @@ describeFlaky("update state (clock-dependent)", () => {
   it("auto-finalizes without the resolver", async () => {
     expect.assertions(4);
 
-    const time = await tryGetOnChainTimestamp();
+    const time = await chain.blockTimestamp();
     const expiryTs = time + 2;
 
     await initMarket({
@@ -407,7 +382,7 @@ describeFlaky("update state (clock-dependent)", () => {
     expect(info.outcome).toStrictEqual({ Open: {} });
     expect(info.finalized).toBe(false);
 
-    await sleepUntil(expiryTs, 5_000);
+    await chain.sleepUntil(expiryTs);
 
     await program.methods
       .updateOutcome({ outcome: { Open: {} } })

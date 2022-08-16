@@ -33,18 +33,15 @@ describe("initialize nft floor resolver", () => {
 
   const initNftFloorParams = ({
     authority: authority_,
-    timestamp,
     floorPrice,
     projectId,
   }: Partial<InitializeNftFloorParams>): InitializeNftFloorParams => {
     authority_ ??= authority.publicKey;
-    timestamp ??= intoU64BN(unixTimestamp() + 3600n);
     floorPrice ??= intoU64BN(0);
     projectId ??= "";
 
     return {
       authority: authority_,
-      timestamp,
       floorPrice,
       projectId,
     };
@@ -165,19 +162,10 @@ describe("initialize nft floor resolver", () => {
     ).rejects.toThrowProgramError(LangErrorCode.ConstraintSeeds);
   });
 
-  it("fails if timestamp has passed", async () => {
-    expect.assertions(1);
-
-    await expect(
-      initNftFloor({ timestamp: intoU64BN(0) }).rpc(),
-    ).rejects.toThrowProgramError(ErrorCode.TimestampPassed);
-  });
-
   it("successfully initializes nft floor resolver", async () => {
-    expect.assertions(7);
+    expect.assertions(6);
 
     const floorPrice = intoU64BN(42);
-    const timestamp = intoU64BN(unixTimestamp() + 3600n);
     const projectId = "foobar";
 
     let { acknowledged } = await escrowProgram.account.market.fetch(
@@ -187,7 +175,7 @@ describe("initialize nft floor resolver", () => {
     expect(acknowledged).toBe(false);
 
     try {
-      await initNftFloor({ floorPrice, timestamp, projectId }).rpc();
+      await initNftFloor({ floorPrice, projectId }).rpc();
     } catch (err) {
       console.error(err);
       throw err;
@@ -197,7 +185,6 @@ describe("initialize nft floor resolver", () => {
 
     expect(info.market).toEqualPubkey(market.publicKey);
     expect(info.authority).toEqualPubkey(authority.publicKey);
-    expect(info.timestamp).toEqualBN(timestamp);
     expect(info.floorPrice).toEqualBN(floorPrice);
     expect(info.projectId).toBe(projectId);
 

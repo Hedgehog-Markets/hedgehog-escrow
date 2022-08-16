@@ -1,12 +1,12 @@
 use anchor_lang::prelude::*;
 
+use common::sys;
 use common::traits::KeyRef;
 use hh_escrow::program::HhEscrow;
 use hh_escrow::state::{Market, Outcome};
 
 use crate::error::ErrorCode;
 use crate::state::{NftFloor, NFT_FLOOR_SEED};
-use crate::utils;
 
 #[derive(Clone, AnchorDeserialize, AnchorSerialize)]
 pub struct ResolveNftFloorParams {
@@ -55,7 +55,7 @@ pub fn handler(ctx: Context<ResolveNftFloor>, params: ResolveNftFloorParams) -> 
     } = params;
 
     // Check that the timestamp has passed.
-    if ctx.accounts.resolver.timestamp > utils::unix_timestamp()? {
+    if ctx.accounts.market.expiry_ts > sys::timestamp()? {
         return Err(error!(ErrorCode::TimestampNotPassed));
     }
 

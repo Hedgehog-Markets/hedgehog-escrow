@@ -14,8 +14,7 @@ import {
   createInitAccountInstructions,
   createInitMintInstructions,
   sendTx,
-  sleep,
-  tryGetOnChainTimestamp,
+  chain,
   __throw,
 } from "../utils";
 
@@ -103,30 +102,6 @@ describeFlaky("claim (clock-dependent)", () => {
       user: user.publicKey,
     });
 
-  const sleepUntil = async (ts: number, timeoutMs: number) => {
-    let timedOut = false;
-
-    const timeout = sleep(timeoutMs).then(() => {
-      timedOut = true;
-      throw new Error("Timeout out waiting for clock progression");
-    });
-
-    const wait = (async () => {
-      while (!timedOut) {
-        await sleep(100);
-
-        const time = await tryGetOnChainTimestamp();
-        if (ts <= time) {
-          return;
-        }
-      }
-
-      throw new Error("Timeout out waiting for clock progression");
-    })();
-
-    await Promise.race([wait, timeout]);
-  };
-
   //////////////////////////////////////////////////////////////////////////////
 
   beforeAll(async () => {
@@ -193,7 +168,7 @@ describeFlaky("claim (clock-dependent)", () => {
   it("fails if the market has finalized to invalid", async () => {
     expect.assertions(1);
 
-    const time = await tryGetOnChainTimestamp();
+    const time = await chain.blockTimestamp();
     const closeTs = time + 2;
 
     const params = initMarketParams({ closeTs: intoU64BN(closeTs) });
@@ -211,7 +186,7 @@ describeFlaky("claim (clock-dependent)", () => {
       .signers([market, user])
       .rpc();
 
-    await sleepUntil(closeTs, 5_000);
+    await chain.sleepUntil(closeTs);
 
     await expect(claim().signers([user]).rpc()).rejects.toThrowProgramError(
       ErrorCode.CannotClaim,
@@ -276,7 +251,7 @@ describeFlaky("claim (clock-dependent)", () => {
 
     let expiryTs: number;
     {
-      const time = await tryGetOnChainTimestamp();
+      const time = await chain.blockTimestamp();
 
       const closeTs = intoU64BN((expiryTs = time + 2));
       const params = initMarketParams({
@@ -320,7 +295,7 @@ describeFlaky("claim (clock-dependent)", () => {
         .rpc();
     }
 
-    await sleepUntil(expiryTs, 5_000);
+    await chain.sleepUntil(expiryTs);
 
     const updateOutcomeIx = await program.methods
       .updateOutcome({ outcome: { No: {} } })

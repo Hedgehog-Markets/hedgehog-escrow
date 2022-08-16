@@ -1,5 +1,3 @@
-import { getProvider } from "@project-serum/anchor";
-
 class Optional<T> {
   constructor(public readonly value?: T) {}
 
@@ -30,18 +28,6 @@ export const sleep = (ms: number): Promise<void> =>
  * Gets the current unix timestamp.
  */
 export const unixTimestamp = (): bigint => BigInt(Date.now()) / 1000n;
-
-/**
- * Attempts to get the current on-chain unix timestamp.
- */
-export const tryGetOnChainTimestamp = async () => {
-  const provider = getProvider();
-
-  const { absoluteSlot } = await provider.connection.getEpochInfo();
-  const time = await provider.connection.getBlockTime(absoluteSlot + 1);
-
-  return time ?? __throw(new Error("Failed to get block time"));
-};
 
 /**
  * Utility function to throw from an expression.

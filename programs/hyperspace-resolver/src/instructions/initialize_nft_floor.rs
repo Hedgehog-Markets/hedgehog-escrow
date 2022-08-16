@@ -2,20 +2,18 @@ use std::slice;
 
 use anchor_lang::prelude::*;
 
+use common::sys;
 use common::traits::KeyRef;
 use hh_escrow::program::HhEscrow;
 use hh_escrow::state::Market;
 
 use crate::error::ErrorCode;
 use crate::state::{NftFloor, NFT_FLOOR_SEED};
-use crate::utils;
 
 #[derive(Clone, AnchorDeserialize, AnchorSerialize)]
 pub struct InitializeNftFloorParams {
     /// The public key of the resolver authority.
     pub authority: Pubkey,
-    /// The time at which to resolve the market.
-    pub timestamp: i64,
     /// The floor price in lamports to compare to when resolving.
     pub floor_price: u64,
     /// The project ID of the collection.
@@ -127,13 +125,12 @@ impl<'info> InitializeNftFloor<'info> {
 pub fn handler(ctx: Context<InitializeNftFloor>, params: InitializeNftFloorParams) -> Result<()> {
     let InitializeNftFloorParams {
         authority,
-        timestamp,
         floor_price,
         project_id,
     } = params;
 
     // Check that the timestamp has not already passed.
-    if timestamp <= utils::unix_timestamp()? {
+    if ctx.accounts.market.expiry_ts <= sys::timestamp()? {
         return Err(error!(ErrorCode::TimestampPassed));
     }
 
@@ -149,7 +146,6 @@ pub fn handler(ctx: Context<InitializeNftFloor>, params: InitializeNftFloorParam
 
     resolver.authority = authority;
     resolver.market = ctx.accounts.market.key();
-    resolver.timestamp = timestamp;
     resolver.floor_price = floor_price;
     resolver.project_id = project_id.to_string();
 

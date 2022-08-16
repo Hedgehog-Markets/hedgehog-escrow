@@ -65,8 +65,8 @@ describe("initialize market", () => {
     };
   };
 
-  const initMarket = (params: Partial<InitializeMarketParams>) => {
-    return program.methods.initializeMarket(initMarketParams(params)).accounts({
+  const initMarket = (params: Partial<InitializeMarketParams>) =>
+    program.methods.initializeMarket(initMarketParams(params)).accounts({
       market: market.publicKey,
       authority,
       creator: program.provider.wallet.publicKey,
@@ -76,7 +76,6 @@ describe("initialize market", () => {
       systemProgram: SystemProgram.programId,
       tokenProgram: TOKEN_PROGRAM_ID,
     });
-  };
 
   //////////////////////////////////////////////////////////////////////////////
 

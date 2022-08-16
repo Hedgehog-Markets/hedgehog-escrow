@@ -1,9 +1,10 @@
 use anchor_lang::prelude::*;
 use solana_program::pubkey::PUBKEY_BYTES;
 
+use common::sys;
+
 use crate::error::ErrorCode;
 use crate::state::{Outcome, UriResource};
-use crate::utils;
 
 /// 30 days max resolution delay.
 pub const MAX_DELAY: u32 = 30 * 86_400;
@@ -103,7 +104,7 @@ impl Market {
     /// If the `finalized` flag is not set, checks the conditions that would
     /// cause the market to be finalized and sets the flag if `true`.
     pub fn is_finalized_and_ts(&mut self) -> Result<(bool, u64)> {
-        let now = utils::unix_timestamp()?;
+        let now = sys::timestamp()?;
 
         // Already finalized.
         if self.finalized {
@@ -123,7 +124,7 @@ impl Market {
             return Ok(true);
         }
 
-        let now = utils::unix_timestamp()?;
+        let now = sys::timestamp()?;
 
         self.check_finalized(now)
     }
@@ -154,7 +155,7 @@ mod tests {
             ..Default::default()
         };
 
-        utils::mock::timestamp(0);
+        sys::mock::timestamp(0);
 
         assert!(market.is_finalized().unwrap());
     }
@@ -169,7 +170,7 @@ mod tests {
             ..Default::default()
         };
 
-        utils::mock::timestamp(0);
+        sys::mock::timestamp(0);
 
         assert!(market.is_finalized().unwrap());
 
@@ -187,7 +188,7 @@ mod tests {
             ..Default::default()
         };
 
-        utils::mock::timestamp(0);
+        sys::mock::timestamp(0);
 
         assert!(market.is_finalized().unwrap());
 
@@ -204,7 +205,7 @@ mod tests {
             ..Default::default()
         };
 
-        utils::mock::timestamp(MAX_DELAY_U64);
+        sys::mock::timestamp(MAX_DELAY_U64);
 
         assert!(market.is_finalized().unwrap());
 
@@ -224,7 +225,7 @@ mod tests {
             ..Default::default()
         };
 
-        utils::mock::timestamp(MAX_DELAY_U64);
+        sys::mock::timestamp(MAX_DELAY_U64);
 
         assert!(market.is_finalized().unwrap());
 
@@ -244,7 +245,7 @@ mod tests {
             ..Default::default()
         };
 
-        utils::mock::timestamp(MAX_DELAY_U64 - 10);
+        sys::mock::timestamp(MAX_DELAY_U64 - 10);
 
         assert!(market.is_finalized().unwrap());
 

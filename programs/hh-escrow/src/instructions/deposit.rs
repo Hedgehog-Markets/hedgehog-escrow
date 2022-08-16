@@ -1,6 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount};
 
+use common::sys;
 use common::traits::KeyRef;
 
 use crate::error::ErrorCode;
@@ -64,7 +65,7 @@ impl Deposit<'_> {
         no_deposit: u64,
         allow_partial: bool,
     ) -> Result<(u64, u64)> {
-        if self.market.close_ts <= utils::unix_timestamp()? {
+        if self.market.close_ts <= sys::timestamp()? {
             return Err(error!(ErrorCode::MarketClosed));
         }
         self.market.finalize()?;

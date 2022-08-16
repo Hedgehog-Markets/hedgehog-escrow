@@ -1,11 +1,11 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 
+use common::sys;
 use common::traits::KeyRef;
 
 use crate::error::ErrorCode;
 use crate::state::{Market, Outcome, UriResource};
-use crate::utils;
 
 /// Parameters for initializing a market.
 #[derive(Clone, AnchorDeserialize, AnchorSerialize)]
@@ -162,7 +162,7 @@ pub fn handler(ctx: Context<InitializeMarket>, params: InitializeMarketParams) -
     if yes_amount == 0 || no_amount == 0 {
         return Err(error!(ErrorCode::ZeroTokensToFill));
     }
-    if close_ts < utils::unix_timestamp()? {
+    if close_ts < sys::timestamp()? {
         return Err(error!(ErrorCode::InvalidCloseTimestamp));
     }
     if expiry_ts < close_ts {
