@@ -1,4 +1,4 @@
-import type { InitializeMarketParams } from "./utils";
+import type { InitializeMarketParams, Outcome } from "./utils";
 
 import { LangErrorCode } from "@project-serum/anchor";
 import { Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
@@ -121,7 +121,7 @@ describe("initialize market", () => {
     expect(info.expiryTs).toEqualBN(params.expiryTs);
     expect(info.outcomeTs).toEqualBN(0);
     expect(info.resolutionDelay).toBe(params.resolutionDelay);
-    expect(info.outcome).toStrictEqual({ Open: {} });
+    expect(info.outcome).toStrictEqual<Outcome>({ Open: {} });
     expect(info.finalized).toBe(false);
     expect(info.yesAccountBump).toBe(yesTokenAccountNonce);
     expect(info.noAccountBump).toBe(noTokenAccountNonce);

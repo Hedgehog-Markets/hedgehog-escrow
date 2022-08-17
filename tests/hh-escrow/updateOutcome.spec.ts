@@ -1,4 +1,4 @@
-import type { InitializeMarketParams } from "./utils";
+import type { InitializeMarketParams, Outcome } from "./utils";
 
 import {
   Keypair,
@@ -248,7 +248,7 @@ describeFlaky("update state (clock-dependent)", () => {
     const info = await program.account.market.fetch(market.publicKey);
 
     expect(info.outcomeTs).toEqualBN(time);
-    expect(info.outcome).toStrictEqual({ Invalid: {} });
+    expect(info.outcome).toStrictEqual<Outcome>({ Invalid: {} });
   });
 
   it("successfully updates to open before market has expired", async () => {
@@ -280,7 +280,7 @@ describeFlaky("update state (clock-dependent)", () => {
     const info = await program.account.market.fetch(market.publicKey);
 
     expect(info.outcomeTs).toEqualBN(0n);
-    expect(info.outcome).toStrictEqual({ Open: {} });
+    expect(info.outcome).toStrictEqual<Outcome>({ Open: {} });
   });
 
   it("fails to update to open after market has expired", async () => {
@@ -360,7 +360,7 @@ describeFlaky("update state (clock-dependent)", () => {
       const info = await program.account.market.fetch(market.publicKey);
 
       expect(info.outcomeTs).toEqualBN(expiryTs);
-      expect(info.outcome).toStrictEqual(outcome);
+      expect(info.outcome).toStrictEqual<Outcome>(outcome);
     },
   );
 
@@ -379,7 +379,7 @@ describeFlaky("update state (clock-dependent)", () => {
 
     let info = await program.account.market.fetch(market.publicKey);
 
-    expect(info.outcome).toStrictEqual({ Open: {} });
+    expect(info.outcome).toStrictEqual<Outcome>({ Open: {} });
     expect(info.finalized).toBe(false);
 
     await chain.sleepUntil(expiryTs);
@@ -394,7 +394,7 @@ describeFlaky("update state (clock-dependent)", () => {
 
     info = await program.account.market.fetch(market.publicKey);
 
-    expect(info.outcome).toStrictEqual({ Invalid: {} });
+    expect(info.outcome).toStrictEqual<Outcome>({ Invalid: {} });
     expect(info.finalized).toBe(true);
   });
 });
