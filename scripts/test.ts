@@ -109,7 +109,7 @@ void startValidator(ledger, wallet).then(() => {
       ANCHOR_WALLET: walletPath,
       SKIP_FLAKY: opts.skipFlaky ? "1" : undefined,
     },
-  });
+  }).on("exit", (code) => process.exit(code ?? 1));
 });
 
 ////////////////////////////////////////////////////////////////////////////////
