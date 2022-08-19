@@ -141,7 +141,7 @@ impl Market {
 }
 
 // Tests for finalize logic with a mocked timestamp.
-#[cfg(test)]
+#[cfg(all(test, not(target_arch = "bpf")))]
 mod tests {
     use super::*;
 
