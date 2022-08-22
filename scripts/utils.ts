@@ -7,6 +7,7 @@ import { createHash } from "crypto";
 import toml from "toml";
 import pako from "pako";
 import { Keypair, PublicKey } from "@solana/web3.js";
+import { BorshAccountsCoder } from "@project-serum/anchor";
 
 export const PROJECT_DIR = path.dirname(__dirname);
 export const PROGRAMS_DIR = path.join(PROJECT_DIR, "programs");
@@ -57,10 +58,8 @@ export const wallet = readKeypair(walletPath);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const IDL_ACCOUNT_DISCRIMINATOR = createHash("sha256")
-  .update("account:IdlAccount", "utf-8")
-  .digest()
-  .subarray(0, 8);
+const IDL_ACCOUNT_DISCRIMINATOR =
+  BorshAccountsCoder.accountDiscriminator("IdlAccount");
 
 function getIdlAccountAddress(program: PublicKey): PublicKey {
   const [signer] = PublicKey.findProgramAddressSync([], program);
