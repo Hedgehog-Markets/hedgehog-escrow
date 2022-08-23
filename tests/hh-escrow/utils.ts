@@ -22,7 +22,7 @@ type EscrowTypes = IdlTypes<HhEscrow>;
 export type InitializeMarketParams = EscrowTypes["InitializeMarketParams"];
 export type UriResource = EscrowTypes["UriResource"];
 export type DepositParams = EscrowTypes["DepositParams"];
-export type UpdateStateParams = EscrowTypes["UpdateStateParams"];
+export type UpdateOutcomeParams = EscrowTypes["UpdateOutcomeParams"];
 export type Outcome = EscrowTypes["Outcome"];
 
 export const program = new Program(ESCROW_PROGRAM_IDL, ESCROW_PROGRAM_ID);

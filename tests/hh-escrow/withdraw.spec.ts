@@ -329,7 +329,7 @@ describe("withdraw", () => {
     expect(noPosition).toEqualBN(noDeposit);
 
     await program.methods
-      .updateState({ outcome: { Invalid: {} } })
+      .updateOutcome({ outcome: { Invalid: {} } })
       .accounts({
         market: market.publicKey,
         resolver: resolver.publicKey,
