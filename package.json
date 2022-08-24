@@ -3,7 +3,8 @@
   "scripts": {
     "postinstall": "patch-package",
     "build": "ts-node ./scripts/build.ts",
-    "test": "ts-node ./scripts/test.ts"
+    "test": "ts-node ./scripts/test.ts",
+    "validator": "ts-node ./scripts/validator.ts"
   },
   "dependencies": {
     "@project-serum/anchor": "0.23.0",
