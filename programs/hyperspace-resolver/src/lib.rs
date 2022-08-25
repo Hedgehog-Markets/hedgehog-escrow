@@ -30,4 +30,8 @@ pub mod hyperspace_resolver {
     ) -> Result<()> {
         instructions::resolve_nft_floor::handler(ctx, params)
     }
+
+    pub fn acknowledge_nft_floor(ctx: Context<AcknowledgeNftFloor>) -> Result<()> {
+        instructions::acknowledge_nft_floor::handler(ctx)
+    }
 }

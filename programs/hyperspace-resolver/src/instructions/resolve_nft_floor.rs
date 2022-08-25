@@ -17,10 +17,10 @@ pub struct ResolveNftFloorParams {
 #[derive(Accounts)]
 pub struct ResolveNftFloor<'info> {
     /// The metadata account for the resolver.
-    #[account(seeds = [NFT_FLOOR_SEED, market.key_ref().as_ref()], bump)]
+    #[account(seeds = [NFT_FLOOR_SEED, resolver.market.key_ref().as_ref()], bump)]
     pub resolver: Account<'info, NftFloor>,
     /// The market to resolve.
-    #[account(mut, constraint = market.resolver == *resolver.key_ref() @ ErrorCode::IncorrectResolver)]
+    #[account(mut, address = resolver.market @ ErrorCode::IncorrectMarket)]
     pub market: Account<'info, Market>,
     /// The resolver authority.
     #[account(address = resolver.authority @ ErrorCode::IncorrectAuthority)]

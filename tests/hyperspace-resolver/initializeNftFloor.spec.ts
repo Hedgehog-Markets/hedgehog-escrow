@@ -142,7 +142,7 @@ describe("initialize nft floor resolver", () => {
     ).rejects.toThrowProgramError(ErrorCode.IncorrectResolver);
   });
 
-  it("fails if resolver is not market PDA", async () => {
+  it("fails if resolver is not PDA", async () => {
     expect.assertions(1);
 
     const wrongResolver = Keypair.generate();

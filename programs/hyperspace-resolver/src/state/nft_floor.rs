@@ -19,6 +19,8 @@ pub struct NftFloor {
     pub authority: Pubkey,
     /// The market to be resolved.
     pub market: Pubkey,
+    /// Whether the resolver has been acknowledged by the authority.
+    pub acknowledged: bool,
     /// The floor price in lamports to compare to when resolving.
     pub floor_price: u64,
     /// The project ID of the collection.
@@ -30,6 +32,7 @@ impl NftFloor {
     pub fn account_size(project_id: &str) -> usize {
         PUBKEY_BYTES // authority
         + PUBKEY_BYTES // market
+        + 1 // acknowledged
         + 8 // floor_price
         + 4 + project_id.len() // project_id (4 bytes for length + bytes)
     }
