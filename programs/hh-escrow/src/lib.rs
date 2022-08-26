@@ -12,7 +12,7 @@ use crate::instructions::*;
 
 pub use crate::error::ErrorCode;
 
-declare_id!("Yb4spZYFpgad4pDvV1mdU7pFU9vQWNeDS4degy7eR1u");
+declare_id!("P2PhxE2cz3M811AE4KeKjmMHqj26rPbZMq2Jssps4vN");
 
 #[program]
 pub mod hh_escrow {
