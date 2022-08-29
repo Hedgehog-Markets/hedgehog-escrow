@@ -175,7 +175,7 @@ describe("claim", () => {
         .preInstructions(preIxs)
         .signers([user, wrongFeeAccount])
         .rpc(),
-    ).rejects.toThrowProgramError(LangErrorCode.ConstraintTokenOwner);
+    ).rejects.toThrowProgramError(ErrorCode.AccountNotOwnedByFeeWallet);
   });
 
   it("fails if the fee account is not the associated token account for the fee wallet and token mint", async () => {
@@ -195,7 +195,7 @@ describe("claim", () => {
         .preInstructions(preIxs)
         .signers([user, wrongFeeAccount])
         .rpc(),
-    ).rejects.toThrowProgramError(LangErrorCode.ConstraintAssociated);
+    ).rejects.toThrowProgramError(ErrorCode.AssociatedTokenAccountRequired);
   });
 
   it("fails if the user provides the yes token account", async () => {

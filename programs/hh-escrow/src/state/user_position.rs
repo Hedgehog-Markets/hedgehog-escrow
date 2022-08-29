@@ -1,5 +1,4 @@
 use anchor_lang::prelude::*;
-use solana_program::pubkey::PUBKEY_BYTES;
 
 /// Tracks the user's positions for a given market.
 #[account]
@@ -14,5 +13,5 @@ pub struct UserPosition {
 }
 
 impl UserPosition {
-    pub const LEN: usize = PUBKEY_BYTES + (2 * 8);
+    pub const LEN: usize = 32 + 2 * 8;
 }

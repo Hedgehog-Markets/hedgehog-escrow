@@ -14,21 +14,21 @@ describe.skip("initialize global state", () => {
     await expect(
       program.methods
         .initializeGlobalState({
-          authority: authority.publicKey,
-          feeWallet: feeWallet.publicKey,
           protocolFeeBps: 10,
         })
         .accounts({
           globalState: globalState.address,
+          authority: wrongUgradeAuthority.publicKey, // upgrade authority
+          globalStateOwner: authority.publicKey,
+          feeWallet: feeWallet.publicKey,
           payer: program.provider.wallet.publicKey,
-          upgradeAuthority: wrongUgradeAuthority.publicKey,
           escrowProgram: program.programId,
           programData,
           systemProgram: SystemProgram.programId,
         })
         .signers([wrongUgradeAuthority])
         .rpc(),
-    ).rejects.toThrowProgramError(ErrorCode.InvalidProgramUpgradeAuthority);
+    ).rejects.toThrowProgramError(ErrorCode.InvalidProgramAuthority);
   });
 
   it("fails if the protocol fee is too high", async () => {
@@ -37,14 +37,14 @@ describe.skip("initialize global state", () => {
     await expect(
       program.methods
         .initializeGlobalState({
-          authority: authority.publicKey,
-          feeWallet: feeWallet.publicKey,
           protocolFeeBps: 10_001,
         })
         .accounts({
           globalState: globalState.address,
+          authority: program.provider.wallet.publicKey, // upgrade authority
+          globalStateOwner: authority.publicKey,
+          feeWallet: feeWallet.publicKey,
           payer: program.provider.wallet.publicKey,
-          upgradeAuthority: program.provider.wallet.publicKey,
           escrowProgram: program.programId,
           programData,
           systemProgram: SystemProgram.programId,
@@ -58,14 +58,14 @@ describe.skip("initialize global state", () => {
 
     await program.methods
       .initializeGlobalState({
-        authority: authority.publicKey,
-        feeWallet: feeWallet.publicKey,
         protocolFeeBps: 10_000,
       })
       .accounts({
         globalState: globalState.address,
+        authority: program.provider.wallet.publicKey, // upgrade authority
+        globalStateOwner: authority.publicKey,
+        feeWallet: feeWallet.publicKey,
         payer: program.provider.wallet.publicKey,
-        upgradeAuthority: program.provider.wallet.publicKey,
         escrowProgram: program.programId,
         programData,
         systemProgram: SystemProgram.programId,
@@ -74,8 +74,8 @@ describe.skip("initialize global state", () => {
 
     const state = await program.account.globalState.fetch(globalState.address);
 
-    expect(state.authority).toEqualPubkey(authority.publicKey);
+    expect(state.owner).toEqualPubkey(authority.publicKey);
     expect(state.feeWallet).toEqualPubkey(feeWallet.publicKey);
-    expect(state.protocolFeeBps.bps).toBe(10_000);
+    expect(state.feeCutBps.bps).toBe(10_000);
   });
 });

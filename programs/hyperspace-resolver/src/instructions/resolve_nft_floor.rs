@@ -33,7 +33,7 @@ pub struct ResolveNftFloor<'info> {
 impl<'info> ResolveNftFloor<'info> {
     /// Resolves the market.
     pub fn resolve(&self, signer_seeds: &[&[&[u8]]], outcome: Outcome) -> Result<()> {
-        let accounts = hh_escrow::cpi::accounts::UpdateOutcome {
+        let accounts = hh_escrow::cpi::accounts::UpdateState {
             market: self.market.to_account_info(),
             resolver: self.resolver.to_account_info(),
         };
@@ -43,9 +43,9 @@ impl<'info> ResolveNftFloor<'info> {
             signer_seeds,
         );
 
-        let params = hh_escrow::instructions::UpdateOutcomeParams { outcome };
+        let params = hh_escrow::instructions::UpdateStateParams { outcome };
 
-        hh_escrow::cpi::update_outcome(ctx, params)
+        hh_escrow::cpi::update_state(ctx, params)
     }
 }
 

@@ -1,15 +1,12 @@
 use anchor_lang::prelude::*;
-use solana_program::pubkey::PUBKEY_BYTES;
-
-use common::sys;
 
 use crate::error::ErrorCode;
 use crate::state::{Outcome, UriResource};
 
-/// 30 days max resolution delay.
-pub const MAX_DELAY: u32 = 30 * 86_400;
+/// 30 days max delay before a result is set.
+pub const MAX_DELAY_SEC: u32 = 86_400 * 30;
 
-/// Market metadata account.
+/// The [Market] account.
 #[account]
 #[derive(Default)]
 pub struct Market {
@@ -50,16 +47,22 @@ pub struct Market {
     pub no_account_bump: u8,
     /// Whether the resolver has acknowledged this market.
     pub acknowledged: bool,
-    /// The URI to the market info (i.e. title, description)
+    /// The URI to the market's info (i.e. title, description)
     pub uri: UriResource,
 }
 
 impl Market {
-    #[allow(clippy::identity_op)]
-    pub const LEN: usize =
-        (5 * PUBKEY_BYTES) + (7 * 8) + 4 + Outcome::LEN + 1 + (2 * 1) + 1 + UriResource::LEN;
+    pub const LEN: usize = 5 * 32 + 7 * 8 + 4 + 1 + 1 + 2 * 1 + 1 + UriResource::LEN;
 
-    fn check_finalized(&mut self, now: u64) -> Result<bool> {
+    /// Checks whether the market is finalized. If the `finalized` flag is not
+    /// flipped, checks conditions that would cause the market to be finalized,
+    /// and flips the flag if needed.
+    pub fn finalize(&mut self, now: u64) -> Result<bool> {
+        // Already finalized.
+        if self.finalized {
+            return Ok(true);
+        }
+
         // Failed to fill funds.
         if (self.yes_filled < self.yes_amount || self.no_filled < self.no_amount)
             && now >= self.close_ts
@@ -69,12 +72,12 @@ impl Market {
             return Ok(true);
         }
 
-        // Beyond MAX_DELAY of the expiry.
+        // Beyond MAX_DELAY_SEC of the expiry.
         if now
             >= self
                 .expiry_ts
-                .checked_add(MAX_DELAY.into())
-                .ok_or_else(|| error!(ErrorCode::CalculationFailure))?
+                .checked_add(MAX_DELAY_SEC.into())
+                .ok_or(ErrorCode::Overflow)?
         {
             if self.outcome == Outcome::Open {
                 self.outcome = Outcome::Invalid;
@@ -89,7 +92,7 @@ impl Market {
                 >= self
                     .outcome_ts
                     .checked_add(self.resolution_delay.into())
-                    .ok_or_else(|| error!(ErrorCode::CalculationFailure))?
+                    .ok_or(ErrorCode::Overflow)?
         {
             self.finalized = true;
             return Ok(true);
@@ -98,41 +101,15 @@ impl Market {
         Ok(false)
     }
 
-    /// Checks whether the market is finalized, additionally returning the
-    /// timestamp used in the check.
+    /// Same as `is_and_set_finalize`, but errors if the market is finalized.
     ///
-    /// If the `finalized` flag is not set, checks the conditions that would
-    /// cause the market to be finalized and sets the flag if `true`.
-    pub fn is_finalized_and_ts(&mut self) -> Result<(bool, u64)> {
-        let now = sys::timestamp()?;
-
-        // Already finalized.
-        if self.finalized {
-            return Ok((true, now));
-        }
-
-        Ok((self.check_finalized(now)?, now))
-    }
-
-    /// Checks whether the market is finalized.
-    ///
-    /// If the `finalized` flag is not set, checks the conditions that would
-    /// cause the market to be finalized and sets the flag if `true`.
-    pub fn is_finalized(&mut self) -> Result<bool> {
-        // Already finalized.
-        if self.finalized {
-            return Ok(true);
-        }
-
-        let now = sys::timestamp()?;
-
-        self.check_finalized(now)
-    }
-
-    /// Attempts to mark the market as finalized, failing if the market is
-    /// already finalized.
-    pub fn finalize(&mut self) -> Result<()> {
-        if self.is_finalized()? {
+    /// Note that this is slightly inefficient, as this will cause the
+    /// transaction to fail and revert writes that occur from
+    /// `is_and_set_finalize`. However, this should be called at the beginning
+    /// of any transaction that needs this check, so any wasted compute is
+    /// minimal.
+    pub fn set_and_check_finalize(&mut self, now: u64) -> Result<()> {
+        if self.finalize(now)? {
             return Err(error!(ErrorCode::AlreadyFinalized));
         }
 
@@ -140,12 +117,11 @@ impl Market {
     }
 }
 
+// TODO: Mock the Clock implementation.
 // Tests for finalize logic with a mocked timestamp.
-#[cfg(all(test, not(target_arch = "bpf")))]
+#[cfg(test)]
 mod tests {
     use super::*;
-
-    const MAX_DELAY_U64: u64 = MAX_DELAY as u64;
 
     // Checks that we return true if the finalized boolean is set to true.
     #[test]
@@ -155,9 +131,9 @@ mod tests {
             ..Default::default()
         };
 
-        sys::mock::timestamp(0);
+        let result = market.finalize(0).unwrap();
 
-        assert!(market.is_finalized().unwrap());
+        assert_eq!(result, true);
     }
 
     // Check that we finalize the market if it fails to fill all its funds for
@@ -170,11 +146,10 @@ mod tests {
             ..Default::default()
         };
 
-        sys::mock::timestamp(0);
+        let result = market.finalize(0).unwrap();
 
-        assert!(market.is_finalized().unwrap());
-
-        assert!(market.finalized);
+        assert_eq!(result, true);
+        assert_eq!(market.finalized, true);
         assert_eq!(market.outcome, Outcome::Invalid);
     }
 
@@ -188,11 +163,10 @@ mod tests {
             ..Default::default()
         };
 
-        sys::mock::timestamp(0);
+        let result = market.finalize(0).unwrap();
 
-        assert!(market.is_finalized().unwrap());
-
-        assert!(market.finalized);
+        assert_eq!(result, true);
+        assert_eq!(market.finalized, true);
         assert_eq!(market.outcome, Outcome::Invalid);
     }
 
@@ -201,15 +175,14 @@ mod tests {
     #[test]
     fn check_finalized_max_delay_invalid() {
         let mut market = Market {
-            resolution_delay: MAX_DELAY + 1,
+            resolution_delay: MAX_DELAY_SEC + 1,
             ..Default::default()
         };
 
-        sys::mock::timestamp(MAX_DELAY_U64);
+        let result = market.finalize(MAX_DELAY_SEC.into()).unwrap();
 
-        assert!(market.is_finalized().unwrap());
-
-        assert!(market.finalized);
+        assert_eq!(result, true);
+        assert_eq!(market.finalized, true);
         assert_eq!(market.outcome_ts, 0);
         assert_eq!(market.outcome, Outcome::Invalid);
     }
@@ -219,17 +192,16 @@ mod tests {
     #[test]
     fn check_finalized_max_delay_valid() {
         let mut market = Market {
-            resolution_delay: MAX_DELAY + 2,
+            resolution_delay: MAX_DELAY_SEC + 2,
             outcome_ts: 1,
             outcome: Outcome::Yes,
             ..Default::default()
         };
 
-        sys::mock::timestamp(MAX_DELAY_U64);
+        let result = market.finalize(MAX_DELAY_SEC.into()).unwrap();
 
-        assert!(market.is_finalized().unwrap());
-
-        assert!(market.finalized);
+        assert_eq!(result, true);
+        assert_eq!(market.finalized, true);
         assert_eq!(market.outcome, Outcome::Yes);
     }
 
@@ -239,17 +211,16 @@ mod tests {
     fn check_finalized_resolution_delay() {
         let mut market = Market {
             resolution_delay: 10,
-            outcome_ts: (MAX_DELAY - 20).into(),
+            outcome_ts: (MAX_DELAY_SEC - 20).into(),
             expiry_ts: 5,
             outcome: Outcome::Yes,
             ..Default::default()
         };
 
-        sys::mock::timestamp(MAX_DELAY_U64 - 10);
+        let result = market.finalize((MAX_DELAY_SEC - 10).into()).unwrap();
 
-        assert!(market.is_finalized().unwrap());
-
-        assert!(market.finalized);
+        assert_eq!(result, true);
+        assert_eq!(market.finalized, true);
         assert_eq!(market.outcome, Outcome::Yes);
     }
 }

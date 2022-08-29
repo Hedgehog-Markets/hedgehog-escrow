@@ -44,7 +44,7 @@ const describeFlaky = SKIP_FLAKY ? describe.skip : describe;
 //
 // This is done by setting the timestamp to the upcoming block. If the
 // instruction does not appear in that given block, the tests will fail.
-describeFlaky("update state (clock-dependent)", () => {
+describeFlaky("update outcome (clock-dependent)", () => {
   jest.retryTimes(2);
 
   const mint = Keypair.generate();
@@ -188,7 +188,7 @@ describeFlaky("update state (clock-dependent)", () => {
 
       await expect(
         program.methods
-          .updateOutcome({ outcome })
+          .updateState({ outcome })
           .accounts({
             market: market.publicKey,
             resolver: resolver.publicKey,
@@ -215,7 +215,7 @@ describeFlaky("update state (clock-dependent)", () => {
 
     await expect(
       program.methods
-        .updateOutcome({ outcome: { Invalid: {} } })
+        .updateState({ outcome: { Invalid: {} } })
         .accounts({
           market: market.publicKey,
           resolver: wrongResolver.publicKey,
@@ -236,7 +236,7 @@ describeFlaky("update state (clock-dependent)", () => {
     ];
 
     await program.methods
-      .updateOutcome({ outcome: { Invalid: {} } })
+      .updateState({ outcome: { Invalid: {} } })
       .accounts({
         market: market.publicKey,
         resolver: resolver.publicKey,
@@ -259,7 +259,7 @@ describeFlaky("update state (clock-dependent)", () => {
     const preIxs = [
       await initMarket({ closeTs: intoU64BN(time + 3600) }).instruction(),
       await program.methods
-        .updateOutcome({ outcome: { Invalid: {} } })
+        .updateState({ outcome: { Invalid: {} } })
         .accounts({
           market: market.publicKey,
           resolver: resolver.publicKey,
@@ -268,7 +268,7 @@ describeFlaky("update state (clock-dependent)", () => {
     ];
 
     await program.methods
-      .updateOutcome({ outcome: { Open: {} } })
+      .updateState({ outcome: { Open: {} } })
       .accounts({
         market: market.publicKey,
         resolver: resolver.publicKey,
@@ -299,7 +299,7 @@ describeFlaky("update state (clock-dependent)", () => {
     ];
 
     await program.methods
-      .updateOutcome({ outcome: { Invalid: {} } })
+      .updateState({ outcome: { Invalid: {} } })
       .accounts({
         market: market.publicKey,
         resolver: resolver.publicKey,
@@ -312,7 +312,7 @@ describeFlaky("update state (clock-dependent)", () => {
 
     await expect(
       program.methods
-        .updateOutcome({ outcome: { Open: {} } })
+        .updateState({ outcome: { Open: {} } })
         .accounts({
           market: market.publicKey,
           resolver: resolver.publicKey,
@@ -349,7 +349,7 @@ describeFlaky("update state (clock-dependent)", () => {
       await chain.sleepUntil(expiryTs);
 
       await program.methods
-        .updateOutcome({ outcome })
+        .updateState({ outcome })
         .accounts({
           market: market.publicKey,
           resolver: resolver.publicKey,
@@ -385,7 +385,7 @@ describeFlaky("update state (clock-dependent)", () => {
     await chain.sleepUntil(expiryTs);
 
     await program.methods
-      .updateOutcome({ outcome: { Open: {} } })
+      .updateState({ outcome: { Open: {} } })
       .accounts({
         market: market.publicKey,
         resolver: program.provider.wallet.publicKey,
