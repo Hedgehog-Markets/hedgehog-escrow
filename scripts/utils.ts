@@ -2,13 +2,17 @@ import fs from "fs";
 import path from "path";
 import process from "process";
 import { spawnSync } from "child_process";
+import { createHash } from "crypto";
 
 import toml from "toml";
+import pako from "pako";
 import { Keypair, PublicKey } from "@solana/web3.js";
+import { BorshAccountsCoder } from "@project-serum/anchor";
 
 export const PROJECT_DIR = path.dirname(__dirname);
 export const PROGRAMS_DIR = path.join(PROJECT_DIR, "programs");
 export const DEPLOY_DIR = path.join(PROJECT_DIR, "target", "deploy");
+export const IDL_DIR = path.join(PROJECT_DIR, "target", "idl");
 export const ACCOUNTS_DIR = path.join(DEPLOY_DIR, "accounts");
 
 export const BPF_LOADER_UPGRADEABLE_PROGRAM_ID = new PublicKey(
@@ -54,12 +58,27 @@ export const wallet = readKeypair(walletPath);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const IDL_ACCOUNT_DISCRIMINATOR =
+  BorshAccountsCoder.accountDiscriminator("IdlAccount");
+
+function getIdlAccountAddress(program: PublicKey): PublicKey {
+  const [signer] = PublicKey.findProgramAddressSync([], program);
+  const buf = Buffer.concat([
+    signer.toBytes(),
+    Buffer.from("anchor:idl"),
+    program.toBytes(),
+  ]);
+  return new PublicKey(createHash("sha256").update(buf).digest());
+}
+
 export class Program {
   readonly address: PublicKey;
   readonly pda: PublicKey;
+  readonly idlAddress: PublicKey;
 
   readonly accountPath: string;
   readonly exeAccountPath: string;
+  readonly idlAccountPath: string;
 
   constructor(readonly name: string, readonly lib: string) {
     this.address = new PublicKey(
@@ -70,17 +89,24 @@ export class Program {
       [this.address.toBytes()],
       BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
     )[0];
+    this.idlAddress = getIdlAccountAddress(this.address);
 
     this.accountPath = path.join(ACCOUNTS_DIR, `${lib}.json`);
     this.exeAccountPath = path.join(ACCOUNTS_DIR, `${lib}-exe.json`);
+    this.idlAccountPath = path.join(ACCOUNTS_DIR, `${lib}-idl.json`);
   }
 
   public toString(): string {
     return this.name;
   }
 
-  public elf(): Buffer {
+  public elf(): Uint8Array {
     return fs.readFileSync(path.join(DEPLOY_DIR, `${this.lib}.so`));
+  }
+
+  public idl(): Uint8Array {
+    const idl = fs.readFileSync(path.join(IDL_DIR, `${this.lib}.json`));
+    return pako.deflate(idl);
   }
 }
 
@@ -95,7 +121,7 @@ export const programs = (() => {
     process.exit(1);
   }
 
-  let programNames = new Set<string>();
+  const programNames = new Set<string>();
   for (const entry of entries) {
     if (entry.isDirectory()) {
       programNames.add(entry.name);
@@ -241,6 +267,30 @@ export function build(program: Program, verbose: boolean = false) {
     });
 
     fs.writeFileSync(program.exeAccountPath, accountData);
+  }
+
+  // Write the account data for the IDL.
+  {
+    const idl = program.idl();
+
+    const data = Buffer.alloc(8 + 32 + 4 + idl.length);
+    data.set(IDL_ACCOUNT_DISCRIMINATOR, 0); // Discriminator.
+    data.set(wallet.publicKey.toBytes(), 8); // Authority address.
+    data.writeUint32LE(idl.length, 40); // Compressed IDL length.
+    data.set(idl, 44); // Compressed IDL bytes.
+
+    const accountData = JSON.stringify({
+      pubkey: program.idlAddress.toBase58(),
+      account: {
+        lamports: minLamportsForRentExempt(data.length),
+        data: [data.toString("base64"), "base64"],
+        owner: program.address.toBase58(),
+        executable: false,
+        rentEpoch: 0,
+      },
+    });
+
+    fs.writeFileSync(program.idlAccountPath, accountData);
   }
 }
 

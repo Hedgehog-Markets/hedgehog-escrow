@@ -1,11 +1,7 @@
-import { getProvider, Idl, Program, Provider } from "@project-serum/anchor";
-import type {
-  Connection,
-  PublicKey,
-  TransactionInstruction,
-} from "@solana/web3.js";
+import type { TransactionInstruction } from "@solana/web3.js";
 import type { Address } from "./accounts";
 
+import { getProvider } from "@project-serum/anchor";
 import { SystemProgram } from "@solana/web3.js";
 import {
   TOKEN_PROGRAM_ID,

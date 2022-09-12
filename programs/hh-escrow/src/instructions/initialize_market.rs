@@ -1,11 +1,11 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Mint, Token, TokenAccount};
+use solana_program::entrypoint::ProgramResult;
 
 use common::traits::KeyRef;
 
 use crate::error::ErrorCode;
-use crate::state::{Market, Outcome, UriResource};
-use crate::utils;
+use crate::state::{Market, UriResource};
 
 /// Parameters for initializing a market.
 #[derive(Clone, AnchorDeserialize, AnchorSerialize)]
@@ -44,110 +44,58 @@ pub struct InitializeMarket<'info> {
     #[account(mut)]
     pub creator: Signer<'info>,
     /// The token that this market is denominated in.
-    pub token_mint: Account<'info, Mint>,
+    pub token_mint: Box<Account<'info, Mint>>,
     /// Escrow for tokens on the yes side of the market.
-    ///
-    /// CHECK: We explicitly create this account in the handler.
-    #[account(mut, seeds = [b"yes", market.key_ref().as_ref()], bump)]
-    pub yes_token_account: UncheckedAccount<'info>,
+    #[account(
+        init,
+        payer = creator,
+        token::mint = token_mint,
+        token::authority = authority,
+        seeds = [b"yes", market.key_ref().as_ref()],
+        bump,
+    )]
+    pub yes_token_account: Box<Account<'info, TokenAccount>>,
     /// Escrow for tokens on the no side of the market.
-    ///
-    /// CHECK: We explicitly create this account in the handler.
-    #[account(mut, seeds = [b"no", market.key_ref().as_ref()], bump)]
-    pub no_token_account: UncheckedAccount<'info>,
-
+    #[account(
+        init,
+        payer = creator,
+        token::mint = token_mint,
+        token::authority = authority,
+        seeds = [b"no", market.key_ref().as_ref()],
+        bump,
+    )]
+    pub no_token_account: Box<Account<'info, TokenAccount>>,
     /// The Solana System Program.
     pub system_program: Program<'info, System>,
     /// The SPL Token Program.
     pub token_program: Program<'info, Token>,
+    /// The Sysvar rent.
+    pub rent: Sysvar<'info, Rent>,
 }
 
-impl<'info> InitializeMarket<'info> {
-    fn init_token_account(
-        &self,
-        account: &AccountInfo<'info>,
-        signer_seeds: &[&[&[u8]]],
-    ) -> Result<()> {
-        let payer = &*self.creator;
-
-        let required_lamports = Rent::get()?.minimum_balance(TokenAccount::LEN);
-        let lamports = account.lamports();
-
-        if lamports == 0 {
-            // Create a new token account.
-            solana_program::program::invoke_signed(
-                &solana_program::system_instruction::create_account(
-                    payer.key,
-                    account.key,
-                    required_lamports,
-                    TokenAccount::LEN as u64,
-                    self.token_program.key,
-                ),
-                &[payer.to_account_info(), account.to_account_info()],
-                signer_seeds,
-            )?;
-        } else {
-            let required_lamports = required_lamports.max(1).saturating_sub(lamports);
-            if required_lamports > 0 {
-                // Top up lamports.
-                solana_program::program::invoke(
-                    &solana_program::system_instruction::transfer(
-                        payer.key,
-                        account.key,
-                        required_lamports,
-                    ),
-                    &[payer.to_account_info(), account.to_account_info()],
-                )?;
-            }
-
-            // Allocate space for the token account.
-            solana_program::program::invoke_signed(
-                &solana_program::system_instruction::allocate(
-                    account.key,
-                    TokenAccount::LEN as u64,
-                ),
-                &[account.to_account_info()],
-                signer_seeds,
-            )?;
-
-            // Assign the token program as the account owner.
-            solana_program::program::invoke_signed(
-                &solana_program::system_instruction::assign(account.key, self.token_program.key),
-                &[account.to_account_info()],
-                signer_seeds,
-            )?;
+impl InitializeMarket<'_> {
+    pub fn validate_params(&self, yes_amount: u64, no_amount: u64) -> Result<()> {
+        if yes_amount == 0 || no_amount == 0 {
+            return Err(error!(ErrorCode::CannotHaveNonzeroAmounts));
         }
-
-        // Initialize the token account.
-        solana_program::program::invoke(
-            &spl_token::instruction::initialize_account3(
-                self.token_program.key,
-                account.key,
-                self.token_mint.key_ref(),
-                self.authority.key,
-            )?,
-            &[account.to_account_info(), self.token_mint.to_account_info()],
-        )?;
 
         Ok(())
     }
 
-    fn init_yes_token_account(&self, bump: u8) -> Result<()> {
-        self.init_token_account(
-            &self.yes_token_account,
-            &[&[b"yes", self.market.key_ref().as_ref(), &[bump]]],
-        )
-    }
+    pub fn validate_ts(&self, close_ts: u64, expiry_ts: u64) -> Result<()> {
+        let now = Clock::get()?.unix_timestamp as u64;
+        if close_ts < now {
+            return Err(error!(ErrorCode::InvalidCloseTimestamp));
+        }
+        if expiry_ts < close_ts {
+            return Err(error!(ErrorCode::InvalidExpiryTimestamp));
+        }
 
-    fn init_no_token_account(&self, bump: u8) -> Result<()> {
-        self.init_token_account(
-            &self.no_token_account,
-            &[&[b"no", self.market.key_ref().as_ref(), &[bump]]],
-        )
+        Ok(())
     }
 }
 
-pub fn handler(ctx: Context<InitializeMarket>, params: InitializeMarketParams) -> Result<()> {
+pub fn handler(ctx: Context<InitializeMarket>, params: InitializeMarketParams) -> ProgramResult {
     let InitializeMarketParams {
         close_ts,
         expiry_ts,
@@ -158,23 +106,9 @@ pub fn handler(ctx: Context<InitializeMarket>, params: InitializeMarketParams) -
         resolver,
     } = params;
 
-    // Exit early if parameters are invalid.
-    if yes_amount == 0 || no_amount == 0 {
-        return Err(error!(ErrorCode::ZeroTokensToFill));
-    }
-    if close_ts < utils::unix_timestamp()? {
-        return Err(error!(ErrorCode::InvalidCloseTimestamp));
-    }
-    if expiry_ts < close_ts {
-        return Err(error!(ErrorCode::InvalidExpiryTimestamp));
-    }
-
-    // Exit early if bump seeds are missing.
-    let yes_account_bump = get_bump!(ctx, yes_token_account)?;
-    let no_account_bump = get_bump!(ctx, no_token_account)?;
-
-    ctx.accounts.init_yes_token_account(yes_account_bump)?;
-    ctx.accounts.init_no_token_account(no_account_bump)?;
+    // Exit early if timestamps or parameters are invalid.
+    ctx.accounts.validate_params(yes_amount, no_amount)?;
+    ctx.accounts.validate_ts(close_ts, expiry_ts)?;
 
     let market = &mut ctx.accounts.market;
 
@@ -187,18 +121,19 @@ pub fn handler(ctx: Context<InitializeMarket>, params: InitializeMarketParams) -
     market.yes_token_account = ctx.accounts.yes_token_account.key();
     market.no_token_account = ctx.accounts.no_token_account.key();
     market.yes_amount = yes_amount;
-    market.yes_filled = 0;
     market.no_amount = no_amount;
-    market.no_filled = 0;
     market.close_ts = close_ts;
     market.expiry_ts = expiry_ts;
     market.outcome_ts = 0;
     market.resolution_delay = resolution_delay;
-    market.outcome = Outcome::Open;
-    market.finalized = false;
-    market.yes_account_bump = yes_account_bump;
-    market.no_account_bump = no_account_bump;
-    market.acknowledged = false;
+    market.yes_account_bump = *ctx
+        .bumps
+        .get("yes_token_account")
+        .ok_or_else(|| error!(ErrorCode::NonCanonicalBumpSeed))?;
+    market.no_account_bump = *ctx
+        .bumps
+        .get("no_token_account")
+        .ok_or_else(|| error!(ErrorCode::NonCanonicalBumpSeed))?;
 
     Ok(())
 }

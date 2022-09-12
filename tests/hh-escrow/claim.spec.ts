@@ -128,7 +128,8 @@ describe("claim", () => {
   it("fails if the global state address is incorrect", async () => {
     expect.assertions(1);
 
-    // This is painful because anchor attempts to deserialize the account before checking the constraints.
+    // This is painful because anchor attempts to deserialize the account before
+    // checking the seeds constraint.
 
     const [wrongGlobalState] = PublicKey.findProgramAddressSync(
       [Buffer.from("global2")],
@@ -174,7 +175,7 @@ describe("claim", () => {
         .preInstructions(preIxs)
         .signers([user, wrongFeeAccount])
         .rpc(),
-    ).rejects.toThrowProgramError(LangErrorCode.ConstraintTokenOwner);
+    ).rejects.toThrowProgramError(ErrorCode.AccountNotOwnedByFeeWallet);
   });
 
   it("fails if the fee account is not the associated token account for the fee wallet and token mint", async () => {
@@ -194,7 +195,7 @@ describe("claim", () => {
         .preInstructions(preIxs)
         .signers([user, wrongFeeAccount])
         .rpc(),
-    ).rejects.toThrowProgramError(LangErrorCode.ConstraintAssociated);
+    ).rejects.toThrowProgramError(ErrorCode.AssociatedTokenAccountRequired);
   });
 
   it("fails if the user provides the yes token account", async () => {

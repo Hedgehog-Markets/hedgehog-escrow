@@ -155,6 +155,11 @@ function startValidator(ledger: string, wallet: Keypair): Promise<void> {
   for (const program of programs.values()) {
     args.push("--account", program.address.toBase58(), program.accountPath);
     args.push("--account", program.pda.toBase58(), program.exeAccountPath);
+    args.push(
+      "--account",
+      program.idlAddress.toBase58(),
+      program.idlAccountPath,
+    );
   }
 
   const validator = spawn("solana-test-validator", args, { shell: false });

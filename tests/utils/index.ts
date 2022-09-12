@@ -8,3 +8,5 @@ export * from "./instructions";
 export * from "./misc";
 export * from "./spl";
 export * from "./transaction";
+
+export * as chain from "./chain";

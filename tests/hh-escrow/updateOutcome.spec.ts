@@ -1,4 +1,4 @@
-import type { InitializeMarketParams } from "./utils";
+import type { InitializeMarketParams, Outcome } from "./utils";
 
 import {
   Keypair,
@@ -18,8 +18,7 @@ import {
   createInitAccountInstructions,
   createInitMintInstructions,
   sendTx,
-  tryGetOnChainTimestamp,
-  sleep,
+  chain,
   __throw,
 } from "../utils";
 
@@ -45,7 +44,7 @@ const describeFlaky = SKIP_FLAKY ? describe.skip : describe;
 //
 // This is done by setting the timestamp to the upcoming block. If the
 // instruction does not appear in that given block, the tests will fail.
-describeFlaky("update state (clock-dependent)", () => {
+describeFlaky("update outcome (clock-dependent)", () => {
   jest.retryTimes(2);
 
   const mint = Keypair.generate();
@@ -100,30 +99,6 @@ describeFlaky("update state (clock-dependent)", () => {
         systemProgram: SystemProgram.programId,
         tokenProgram: TOKEN_PROGRAM_ID,
       });
-  };
-
-  const sleepUntil = async (ts: number, timeoutMs: number) => {
-    let timedOut = false;
-
-    const timeout = sleep(timeoutMs).then(() => {
-      timedOut = true;
-      throw new Error("Timeout out waiting for clock progression");
-    });
-
-    const wait = (async () => {
-      while (!timedOut) {
-        await sleep(100);
-
-        const time = await tryGetOnChainTimestamp();
-        if (ts <= time) {
-          return;
-        }
-      }
-
-      throw new Error("Timeout out waiting for clock progression");
-    })();
-
-    await Promise.race([wait, timeout]);
   };
 
   //////////////////////////////////////////////////////////////////////////////
@@ -205,7 +180,7 @@ describeFlaky("update state (clock-dependent)", () => {
     async ({ outcome }) => {
       expect.assertions(1);
 
-      const time = await tryGetOnChainTimestamp();
+      const time = await chain.blockTimestamp();
 
       const preIxs = [
         await initMarket({ closeTs: intoU64BN(time + 3600) }).instruction(),
@@ -213,7 +188,7 @@ describeFlaky("update state (clock-dependent)", () => {
 
       await expect(
         program.methods
-          .updateOutcome({ outcome })
+          .updateState({ outcome })
           .accounts({
             market: market.publicKey,
             resolver: resolver.publicKey,
@@ -230,7 +205,7 @@ describeFlaky("update state (clock-dependent)", () => {
 
     const wrongResolver = Keypair.generate();
 
-    const time = await tryGetOnChainTimestamp();
+    const time = await chain.blockTimestamp();
 
     const preIxs = [
       await initMarket({ closeTs: intoU64BN(time + 3600) }).instruction(),
@@ -240,7 +215,7 @@ describeFlaky("update state (clock-dependent)", () => {
 
     await expect(
       program.methods
-        .updateOutcome({ outcome: { Invalid: {} } })
+        .updateState({ outcome: { Invalid: {} } })
         .accounts({
           market: market.publicKey,
           resolver: wrongResolver.publicKey,
@@ -254,14 +229,14 @@ describeFlaky("update state (clock-dependent)", () => {
   it("successfully updates to invalid before market has expired", async () => {
     expect.assertions(2);
 
-    const time = await tryGetOnChainTimestamp();
+    const time = await chain.blockTimestamp();
 
     const preIxs = [
       await initMarket({ closeTs: intoU64BN(time + 3600) }).instruction(),
     ];
 
     await program.methods
-      .updateOutcome({ outcome: { Invalid: {} } })
+      .updateState({ outcome: { Invalid: {} } })
       .accounts({
         market: market.publicKey,
         resolver: resolver.publicKey,
@@ -273,18 +248,18 @@ describeFlaky("update state (clock-dependent)", () => {
     const info = await program.account.market.fetch(market.publicKey);
 
     expect(info.outcomeTs).toEqualBN(time);
-    expect(info.outcome).toStrictEqual({ Invalid: {} });
+    expect(info.outcome).toStrictEqual<Outcome>({ Invalid: {} });
   });
 
   it("successfully updates to open before market has expired", async () => {
     expect.assertions(2);
 
-    const time = await tryGetOnChainTimestamp();
+    const time = await chain.blockTimestamp();
 
     const preIxs = [
       await initMarket({ closeTs: intoU64BN(time + 3600) }).instruction(),
       await program.methods
-        .updateOutcome({ outcome: { Invalid: {} } })
+        .updateState({ outcome: { Invalid: {} } })
         .accounts({
           market: market.publicKey,
           resolver: resolver.publicKey,
@@ -293,7 +268,7 @@ describeFlaky("update state (clock-dependent)", () => {
     ];
 
     await program.methods
-      .updateOutcome({ outcome: { Open: {} } })
+      .updateState({ outcome: { Open: {} } })
       .accounts({
         market: market.publicKey,
         resolver: resolver.publicKey,
@@ -305,13 +280,13 @@ describeFlaky("update state (clock-dependent)", () => {
     const info = await program.account.market.fetch(market.publicKey);
 
     expect(info.outcomeTs).toEqualBN(0n);
-    expect(info.outcome).toStrictEqual({ Open: {} });
+    expect(info.outcome).toStrictEqual<Outcome>({ Open: {} });
   });
 
   it("fails to update to open after market has expired", async () => {
     expect.assertions(1);
 
-    const time = await tryGetOnChainTimestamp();
+    const time = await chain.blockTimestamp();
     const expiryTs = time + 2;
 
     const preIxs = [
@@ -324,7 +299,7 @@ describeFlaky("update state (clock-dependent)", () => {
     ];
 
     await program.methods
-      .updateOutcome({ outcome: { Invalid: {} } })
+      .updateState({ outcome: { Invalid: {} } })
       .accounts({
         market: market.publicKey,
         resolver: resolver.publicKey,
@@ -333,11 +308,11 @@ describeFlaky("update state (clock-dependent)", () => {
       .signers([market, user, resolver])
       .rpc();
 
-    await sleepUntil(expiryTs, 5_000);
+    await chain.sleepUntil(expiryTs);
 
     await expect(
       program.methods
-        .updateOutcome({ outcome: { Open: {} } })
+        .updateState({ outcome: { Open: {} } })
         .accounts({
           market: market.publicKey,
           resolver: resolver.publicKey,
@@ -356,7 +331,7 @@ describeFlaky("update state (clock-dependent)", () => {
     async ({ outcome }) => {
       expect.assertions(2);
 
-      const time = await tryGetOnChainTimestamp();
+      const time = await chain.blockTimestamp();
       const expiryTs = time + 2;
 
       await sendTx(
@@ -371,10 +346,10 @@ describeFlaky("update state (clock-dependent)", () => {
         [market, user],
       );
 
-      await sleepUntil(expiryTs, 5_000);
+      await chain.sleepUntil(expiryTs);
 
       await program.methods
-        .updateOutcome({ outcome })
+        .updateState({ outcome })
         .accounts({
           market: market.publicKey,
           resolver: resolver.publicKey,
@@ -385,14 +360,14 @@ describeFlaky("update state (clock-dependent)", () => {
       const info = await program.account.market.fetch(market.publicKey);
 
       expect(info.outcomeTs).toEqualBN(expiryTs);
-      expect(info.outcome).toStrictEqual(outcome);
+      expect(info.outcome).toStrictEqual<Outcome>(outcome);
     },
   );
 
   it("auto-finalizes without the resolver", async () => {
     expect.assertions(4);
 
-    const time = await tryGetOnChainTimestamp();
+    const time = await chain.blockTimestamp();
     const expiryTs = time + 2;
 
     await initMarket({
@@ -404,13 +379,13 @@ describeFlaky("update state (clock-dependent)", () => {
 
     let info = await program.account.market.fetch(market.publicKey);
 
-    expect(info.outcome).toStrictEqual({ Open: {} });
+    expect(info.outcome).toStrictEqual<Outcome>({ Open: {} });
     expect(info.finalized).toBe(false);
 
-    await sleepUntil(expiryTs, 5_000);
+    await chain.sleepUntil(expiryTs);
 
     await program.methods
-      .updateOutcome({ outcome: { Open: {} } })
+      .updateState({ outcome: { Open: {} } })
       .accounts({
         market: market.publicKey,
         resolver: program.provider.wallet.publicKey,
@@ -419,7 +394,7 @@ describeFlaky("update state (clock-dependent)", () => {
 
     info = await program.account.market.fetch(market.publicKey);
 
-    expect(info.outcome).toStrictEqual({ Invalid: {} });
+    expect(info.outcome).toStrictEqual<Outcome>({ Invalid: {} });
     expect(info.finalized).toBe(true);
   });
 });

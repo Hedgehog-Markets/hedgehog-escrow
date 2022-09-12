@@ -20,17 +20,17 @@ describe("set global state", () => {
     await expect(
       program.methods
         .setGlobalState({
-          newAuthority: authority.publicKey,
+          newOwner: authority.publicKey,
           newFeeWallet: feeWallet,
-          newProtocolFeeBps: protocolFeeBps.bps,
+          newFeeCutBps: protocolFeeBps.bps,
         })
         .accounts({
           globalState: globalState.address,
-          authority: wrongAuthority.publicKey,
+          owner: wrongAuthority.publicKey,
         })
         .signers([wrongAuthority])
         .rpc(),
-    ).rejects.toThrowProgramError(ErrorCode.IncorrectGlobalStateAuthority);
+    ).rejects.toThrowProgramError(ErrorCode.IncorrectGlobalStateOwner);
   });
 
   it("fails if the protocol fee is too high", async () => {
@@ -41,13 +41,13 @@ describe("set global state", () => {
     await expect(
       program.methods
         .setGlobalState({
-          newAuthority: authority.publicKey,
+          newOwner: authority.publicKey,
           newFeeWallet: feeWallet,
-          newProtocolFeeBps: 10_001,
+          newFeeCutBps: 10_001,
         })
         .accounts({
           globalState: globalState.address,
-          authority: authority.publicKey,
+          owner: authority.publicKey,
         })
         .signers([authority])
         .rpc(),
@@ -65,13 +65,13 @@ describe("set global state", () => {
 
     await program.methods
       .setGlobalState({
-        newAuthority: newAuthority.publicKey,
+        newOwner: newAuthority.publicKey,
         newFeeWallet: newFeeWallet.publicKey,
-        newProtocolFeeBps: newProtocolFeeBps,
+        newFeeCutBps: newProtocolFeeBps,
       })
       .accounts({
         globalState: globalState.address,
-        authority: authority.publicKey,
+        owner: authority.publicKey,
       })
       .signers([authority])
       .rpc();
@@ -86,13 +86,13 @@ describe("set global state", () => {
       // Restore the previous global state, to have minimal impact on other tests.
       await program.methods
         .setGlobalState({
-          newAuthority: authority.publicKey,
+          newOwner: authority.publicKey,
           newFeeWallet: feeWallet,
-          newProtocolFeeBps: protocolFeeBps.bps,
+          newFeeCutBps: protocolFeeBps.bps,
         })
         .accounts({
           globalState: globalState.address,
-          authority: newAuthority.publicKey,
+          owner: newAuthority.publicKey,
         })
         .signers([newAuthority])
         .rpc();

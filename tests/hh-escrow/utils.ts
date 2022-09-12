@@ -22,7 +22,7 @@ type EscrowTypes = IdlTypes<HhEscrow>;
 export type InitializeMarketParams = EscrowTypes["InitializeMarketParams"];
 export type UriResource = EscrowTypes["UriResource"];
 export type DepositParams = EscrowTypes["DepositParams"];
-export type UpdateOutcomeParams = EscrowTypes["UpdateOutcomeParams"];
+export type UpdateStateParams = EscrowTypes["UpdateStateParams"];
 export type Outcome = EscrowTypes["Outcome"];
 
 export const program = new Program(ESCROW_PROGRAM_IDL, ESCROW_PROGRAM_ID);
@@ -59,7 +59,9 @@ export const globalState = (() => {
     },
 
     async fetch() {
-      return await program.account.globalState.fetch(address);
+      const { feeWallet, owner, feeCutBps } =
+        await program.account.globalState.fetch(address);
+      return { authority: owner, feeWallet, protocolFeeBps: feeCutBps };
     },
 
     async getFeeWallet(): Promise<PublicKey> {
@@ -72,7 +74,7 @@ export const globalState = (() => {
     async initialize(): Promise<void> {
       const state = await program.account.globalState.fetchNullable(address);
       if (state) {
-        if (!state.authority.equals(authority.publicKey)) {
+        if (!state.owner.equals(authority.publicKey)) {
           throw new Error(
             `Global state authority is not the expected: ${authority.publicKey.toBase58()}`,
           );
@@ -90,14 +92,14 @@ export const globalState = (() => {
         await sendTx(
           await program.methods
             .initializeGlobalState({
-              authority: authority.publicKey,
-              feeWallet,
               protocolFeeBps,
             })
             .accounts({
               globalState: address,
+              authority: program.provider.wallet.publicKey, // upgrade authority
+              globalStateOwner: authority.publicKey,
+              feeWallet,
               payer: program.provider.wallet.publicKey,
-              upgradeAuthority: program.provider.wallet.publicKey,
               escrowProgram: program.programId,
               programData,
               systemProgram: SystemProgram.programId,

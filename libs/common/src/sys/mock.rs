@@ -1,15 +1,17 @@
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::cell::Cell;
 
 use solana_program::clock::Clock;
 
-static TIMESTAMP: AtomicU64 = AtomicU64::new(0);
+thread_local! {
+    static TIMESTAMP: Cell<i64> = Cell::new(0);
+}
 
 struct MockSyscall {}
 
 impl solana_program::program_stubs::SyscallStubs for MockSyscall {
     fn sol_get_clock_sysvar(&self, var_addr: *mut u8) -> u64 {
         let clock = Clock {
-            unix_timestamp: TIMESTAMP.load(Ordering::Relaxed) as i64,
+            unix_timestamp: TIMESTAMP.with(|ts| ts.get()),
             ..Default::default()
         };
 
@@ -32,5 +34,5 @@ fn install_mock() {
 /// Mock timestamp for use in tests.
 pub fn timestamp(ts: u64) {
     install_mock();
-    TIMESTAMP.store(ts, Ordering::Relaxed);
+    TIMESTAMP.with(|cell| cell.set(ts as i64));
 }

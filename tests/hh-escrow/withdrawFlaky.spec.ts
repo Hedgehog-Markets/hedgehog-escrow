@@ -18,8 +18,7 @@ import {
   createInitAccountInstructions,
   createInitMintInstructions,
   sendTx,
-  tryGetOnChainTimestamp,
-  sleep,
+  chain,
   __throw,
 } from "../utils";
 
@@ -112,30 +111,6 @@ describeFlaky("withdraw (clock-dependent)", () => {
       tokenProgram: TOKEN_PROGRAM_ID,
     });
 
-  const sleepUntil = async (ts: number, timeoutMs: number) => {
-    let timedOut = false;
-
-    const timeout = sleep(timeoutMs).then(() => {
-      timedOut = true;
-      throw new Error("Timeout out waiting for clock progression");
-    });
-
-    const wait = (async () => {
-      while (!timedOut) {
-        await sleep(100);
-
-        const time = await tryGetOnChainTimestamp();
-        if (ts <= time) {
-          return;
-        }
-      }
-
-      throw new Error("Timeout out waiting for clock progression");
-    })();
-
-    await Promise.race([wait, timeout]);
-  };
-
   //////////////////////////////////////////////////////////////////////////////
 
   beforeAll(async () => {
@@ -208,7 +183,7 @@ describeFlaky("withdraw (clock-dependent)", () => {
   it("fails if the outcome is not invalid", async () => {
     expect.assertions(1);
 
-    const time = await tryGetOnChainTimestamp();
+    const time = await chain.blockTimestamp();
     const expiryTs = time + 2;
 
     await sendTx(
@@ -224,11 +199,11 @@ describeFlaky("withdraw (clock-dependent)", () => {
       [market, user],
     );
 
-    await sleepUntil(expiryTs, 5_000);
+    await chain.sleepUntil(expiryTs);
 
     const preIxs = [
       await program.methods
-        .updateOutcome({ outcome: { Yes: {} } })
+        .updateState({ outcome: { Yes: {} } })
         .accounts({ market: market.publicKey, resolver: resolver.publicKey })
         .instruction(),
     ];

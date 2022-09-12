@@ -11,4 +11,8 @@ export const BPF_LOADER_UPGRADEABLE_PROGRAM_ID = new PublicKey(
 export const ESCROW_PROGRAM_ID = anchor.workspace.HhEscrow.programId;
 export { IDL as ESCROW_PROGRAM_IDL } from "../../target/types/hh_escrow";
 
+export const HYPERSPACE_RESOLVER_PROGRAM_ID =
+  anchor.workspace.HyperspaceResolver.programId;
+export { IDL as HYPERSPACE_RESOLVER_PROGRAM_IDL } from "../../target/types/hyperspace_resolver";
+
 export const SKIP_FLAKY = process.env.SKIP_FLAKY === "1";
