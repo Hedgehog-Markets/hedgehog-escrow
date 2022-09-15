@@ -11,7 +11,7 @@ use crate::state::{NftFloor, NFT_FLOOR_SEED};
 #[derive(Clone, AnchorDeserialize, AnchorSerialize)]
 pub struct ResolveNftFloorParams {
     /// The current floor price in lamports.
-    pub current_floor_price: u64,
+    pub current_floor_price: Option<u64>,
 }
 
 #[derive(Accounts)]
@@ -61,10 +61,10 @@ pub fn handler(ctx: Context<ResolveNftFloor>, params: ResolveNftFloorParams) -> 
 
     // Resolve to `Yes` if the current floor price is greater than or equal to
     // the market floor price.
-    let outcome = if current_floor_price >= ctx.accounts.resolver.floor_price {
-        Outcome::Yes
-    } else {
-        Outcome::No
+    let outcome = match current_floor_price {
+        None => Outcome::Invalid,
+        Some(price) if price >= ctx.accounts.resolver.floor_price => Outcome::Yes,
+        _ => Outcome::No,
     };
 
     let bump = get_bump!(ctx, resolver)?;
