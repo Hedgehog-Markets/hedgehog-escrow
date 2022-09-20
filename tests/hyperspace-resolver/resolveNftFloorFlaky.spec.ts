@@ -121,9 +121,12 @@ describeFlaky("initialize nft floor resolver", () => {
       systemProgram: SystemProgram.programId,
     });
 
-  const resolveNftFloor = (currentFloorPrice: IntoU64) =>
+  const resolveNftFloor = (currentFloorPrice: IntoU64 | null) =>
     program.methods
-      .resolveNftFloor({ currentFloorPrice: intoU64BN(currentFloorPrice) })
+      .resolveNftFloor({
+        currentFloorPrice:
+          currentFloorPrice === null ? null : intoU64BN(currentFloorPrice),
+      })
       .accounts({
         resolver,
         market: market.publicKey,
@@ -208,6 +211,7 @@ describeFlaky("initialize nft floor resolver", () => {
     { case: "less than", resolves: "no", outcome: { No: {} }, diff: -1n },
     { case: "equal", resolves: "yes", outcome: { Yes: {} }, diff: 0n },
     { case: "greater than", resolves: "yes", outcome: { Yes: {} }, diff: 1n },
+    { case: "none", resolves: "invalid", outcome: { Invalid: {} }, diff: null },
   ])(
     "successfully resolves to $resolves ($case)",
     async ({ outcome, diff }) => {
@@ -229,7 +233,7 @@ describeFlaky("initialize nft floor resolver", () => {
 
       await chain.sleepUntil(expiryTs);
 
-      await resolveNftFloor(floorPrice + diff)
+      await resolveNftFloor(diff === null ? null : floorPrice + diff)
         .signers([authority])
         .rpc();
 
