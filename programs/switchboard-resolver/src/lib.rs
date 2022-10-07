@@ -11,10 +11,11 @@ use crate::instructions::*;
 
 pub use crate::error::ErrorCode;
 
-declare_id!("CyX3buQXyW939M5LReVhPGwcTDoPWMAdArehA2aqVRvP");
+// TODO: Update to real address later.
+declare_id!("Be7cUjJjBaF1tarJo4aXCYPnMr1xUAvyApaCQovt9kN");
 
 #[program]
-pub mod hyperspace_resolver {
+pub mod switchboard_resolver {
     use super::*;
 
     pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
