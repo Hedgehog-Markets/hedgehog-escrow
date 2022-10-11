@@ -78,11 +78,16 @@ module.exports = {
       extends: ["plugin:jest/recommended", "plugin:jest/style"],
       files: ["ts/setup/**", "**/__tests__/**"],
       rules: {
-        "import/no-extraneous-dependencies": "off",
         "@typescript-eslint/ban-ts-comment": "off",
         "@typescript-eslint/explicit-module-boundary-types": "off",
         "@typescript-eslint/no-empty-function": "off",
         "@typescript-eslint/no-unused-vars": "off",
+
+        "import/no-extraneous-dependencies": "off",
+
+        "jest/no-commented-out-tests": "off",
+        "jest/no-disabled-tests": "off",
+
         "no-console": "off",
       },
     },
@@ -103,7 +108,7 @@ module.exports = {
     "import/no-extraneous-dependencies": [
       "error",
       {
-        devDependencies: ["scripts/**", "ts/**", ".eslintrc.cjs", "jest.config.mjs"],
+        devDependencies: ["scripts/**", ".eslintrc.cjs", "jest.config.mjs"],
       },
     ],
     "import/no-unresolved": "error",
