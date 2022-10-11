@@ -1,22 +1,16 @@
 #!/usr/bin/env -S ts-node --transpile-only
 
-import type { Keypair } from "@solana/web3.js";
-
+import { execFileSync } from "child_process";
 import fs from "fs";
 import os from "os";
 import path from "path";
 import process from "process";
-import { execFileSync } from "child_process";
 
 import { Command } from "commander";
-import {
-  PROJECT_DIR,
-  programs,
-  anchorToml,
-  wallet,
-  atexit,
-  build,
-} from "./utils";
+
+import { PROJECT_DIR, anchorToml, atexit, build, programs, wallet } from "./utils";
+
+import type { Keypair } from "@solana/web3.js";
 
 // Default is 64, this makes transactions faster.
 const TICKS_PER_SLOT = 8;
@@ -84,7 +78,7 @@ startValidator(ledger, wallet);
  * @param wallet Wallet to use for the validator mint.
  */
 function startValidator(ledger: string, wallet: Keypair) {
-  const args: string[] = [];
+  const args: Array<string> = [];
   args.push("--ledger", ledger);
   args.push("--mint", wallet.publicKey.toBase58());
   args.push("--rpc-port", RPC_PORT.toString());
@@ -118,11 +112,7 @@ function startValidator(ledger: string, wallet: Keypair) {
   for (const program of programs.values()) {
     args.push("--account", program.address.toBase58(), program.accountPath);
     args.push("--account", program.pda.toBase58(), program.exeAccountPath);
-    args.push(
-      "--account",
-      program.idlAddress.toBase58(),
-      program.idlAccountPath,
-    );
+    args.push("--account", program.idlAddress.toBase58(), program.idlAccountPath);
   }
 
   execFileSync("solana-test-validator", args, {

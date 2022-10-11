@@ -4,7 +4,7 @@ import process from "process";
 
 import { Command } from "commander";
 
-import { Program, programs, build } from "./utils";
+import { Program, build, programs } from "./utils";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,16 +20,12 @@ const { verbose, targets } = (() => {
     .showSuggestionAfterError(true)
     .helpOption("-h, --help", "display this help message and exit")
     .option("-v, --verbose", "use verbose output", false)
-    .option(
-      "-p, --program-name <PROGRAM_NAME>",
-      "specify program to build",
-      false,
-    )
+    .option("-p, --program-name <PROGRAM_NAME>", "specify program to build", false)
     .parse();
 
   const { verbose, programName } = program.opts<Opts>();
 
-  let targets: Program[];
+  let targets: Array<Program>;
   if (programName) {
     const program = programs.get(programName);
     if (!program) {

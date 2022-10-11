@@ -1,3 +1,7 @@
-node_modules/
-target/types/
-jest.config.cjs
+!.*
+node_modules/**
+build/**
+target/**
+
+**/.yarn
+**/.pnp.*

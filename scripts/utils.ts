@@ -1,13 +1,13 @@
+import { spawnSync } from "child_process";
+import { createHash } from "crypto";
 import fs from "fs";
 import path from "path";
 import process from "process";
-import { spawnSync } from "child_process";
-import { createHash } from "crypto";
 
-import toml from "toml";
-import pako from "pako";
-import { Keypair, PublicKey } from "@solana/web3.js";
 import { BorshAccountsCoder } from "@project-serum/anchor";
+import { Keypair, PublicKey } from "@solana/web3.js";
+import pako from "pako";
+import toml from "toml";
 
 export const PROJECT_DIR = path.dirname(__dirname);
 export const PROGRAMS_DIR = path.join(PROJECT_DIR, "programs");
@@ -20,9 +20,7 @@ export const BPF_LOADER_UPGRADEABLE_PROGRAM_ID = new PublicKey(
 );
 
 // https://github.com/solana-labs/solana/blob/aea84e699c904235b8d6406b9424c22449e8254f/sdk/program/src/rent.rs#L31
-export const LAMPORTS_PER_BYTE_YEAR = Number(
-  ((1_000_000_000n / 100n) * 365n) / (1024n * 1024n),
-);
+export const LAMPORTS_PER_BYTE_YEAR = Number(((1_000_000_000n / 100n) * 365n) / (1024n * 1024n));
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,16 +56,11 @@ export const wallet = readKeypair(walletPath);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const IDL_ACCOUNT_DISCRIMINATOR =
-  BorshAccountsCoder.accountDiscriminator("IdlAccount");
+const IDL_ACCOUNT_DISCRIMINATOR = BorshAccountsCoder.accountDiscriminator("IdlAccount");
 
 function getIdlAccountAddress(program: PublicKey): PublicKey {
   const [signer] = PublicKey.findProgramAddressSync([], program);
-  const buf = Buffer.concat([
-    signer.toBytes(),
-    Buffer.from("anchor:idl"),
-    program.toBytes(),
-  ]);
+  const buf = Buffer.concat([signer.toBytes(), Buffer.from("anchor:idl"), program.toBytes()]);
   return new PublicKey(createHash("sha256").update(buf).digest());
 }
 
@@ -113,7 +106,7 @@ export class Program {
 export const programs = (() => {
   const programs = new Map<string, Program>();
 
-  let entries: fs.Dirent[];
+  let entries: Array<fs.Dirent>;
   try {
     entries = fs.readdirSync(PROGRAMS_DIR, { withFileTypes: true });
   } catch (e) {
@@ -140,8 +133,7 @@ export const programs = (() => {
 
   const metadata = JSON.parse(result.stdout);
   const packages =
-    metadata?.packages ??
-    __throw(new Error("missing 'packages' entry in workspace metadata"));
+    metadata?.packages ?? __throw(new Error("missing 'packages' entry in workspace metadata"));
 
   if (!Array.isArray(packages)) {
     throw new Error("'packages' entry in workspace metadata is not an array");
@@ -150,9 +142,7 @@ export const programs = (() => {
   for (const pkg of packages) {
     const name = pkg.name ?? __throw(new Error("missing package name"));
     if (programNames.delete(name)) {
-      const lib =
-        pkg.targets?.[0]?.name ??
-        __throw(new Error("missing package target name"));
+      const lib = pkg.targets?.[0]?.name ?? __throw(new Error("missing package target name"));
 
       const program = new Program(name, lib);
       programs.set(name, program);
@@ -184,7 +174,7 @@ function exitHandler() {
 /**
  * Add a handler to be called on process exit.
  */
-export function atexit(fn: () => void) {
+export function atexit(fn: () => void): void {
   if (exitHandlers === undefined) {
     exitHandlers = [];
 
@@ -205,8 +195,8 @@ export function atexit(fn: () => void) {
 /**
  * Build a program.
  */
-export function build(program: Program, verbose: boolean = false) {
-  const args: string[] = ["build"];
+export function build(program: Program, verbose: boolean = false): void {
+  const args: Array<string> = ["build"];
   args.push("--program-name", program.lib); // Build lib.
 
   console.log(`Building ${program}`);
