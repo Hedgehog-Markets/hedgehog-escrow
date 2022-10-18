@@ -201,10 +201,10 @@ describeFlaky("initialize nft floor resolver", () => {
   //////////////////////////////////////////////////////////////////////////////
 
   it.each([
-    { case: "less than", resolves: "no", outcome: { No: {} }, diff: -1n },
-    { case: "equal", resolves: "yes", outcome: { Yes: {} }, diff: 0n },
-    { case: "greater than", resolves: "yes", outcome: { Yes: {} }, diff: 1n },
-    { case: "none", resolves: "invalid", outcome: { Invalid: {} }, diff: null },
+    { case: "less than", resolves: "no", outcome: { no: {} }, diff: -1n },
+    { case: "equal", resolves: "yes", outcome: { yes: {} }, diff: 0n },
+    { case: "greater than", resolves: "yes", outcome: { yes: {} }, diff: 1n },
+    { case: "none", resolves: "invalid", outcome: { invalid: {} }, diff: null },
   ])("successfully resolves to $resolves ($case)", async ({ outcome, diff }) => {
     expect.assertions(3);
 

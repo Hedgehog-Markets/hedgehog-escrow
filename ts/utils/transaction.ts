@@ -21,6 +21,8 @@ import {
   ESCROW_PROGRAM_IDL,
   HYPERSPACE_RESOLVER_PROGRAM_ID,
   HYPERSPACE_RESOLVER_PROGRAM_IDL,
+  SWITCHBOARD_RESOLVER_PROGRAM_ID,
+  SWITCHBOARD_RESOLVER_PROGRAM_IDL,
 } from "./constants";
 import { __throw } from "./misc";
 import { atoken, spl } from "./spl";
@@ -43,6 +45,7 @@ addErrors(ASSOCIATED_TOKEN_PROGRAM_ID, atoken.idl.errors);
 
 addErrors(ESCROW_PROGRAM_ID, ESCROW_PROGRAM_IDL.errors);
 addErrors(HYPERSPACE_RESOLVER_PROGRAM_ID, HYPERSPACE_RESOLVER_PROGRAM_IDL.errors);
+addErrors(SWITCHBOARD_RESOLVER_PROGRAM_ID, SWITCHBOARD_RESOLVER_PROGRAM_IDL.errors);
 
 export async function sendTx(
   tx: Transaction | Array<TransactionInstruction>,

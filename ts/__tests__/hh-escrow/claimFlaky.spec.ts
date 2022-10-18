@@ -290,7 +290,7 @@ describeFlaky("claim (clock-dependent)", () => {
     await chain.sleepUntil(expiryTs);
 
     const updateOutcomeIx = await program.methods
-      .updateState({ outcome: { No: {} } })
+      .updateState({ outcome: { no: {} } })
       .accounts({
         market: market.publicKey,
         resolver: resolver.publicKey,

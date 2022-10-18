@@ -34,6 +34,9 @@
       "@idl/*": ["../../target/types/*"]
     }
   },
+  "ts-node": {
+    "transpileOnly": true
+  },
   "include": ["scripts", "ts"],
   "exclude": ["node_modules"]
 }

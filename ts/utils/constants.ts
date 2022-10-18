@@ -13,4 +13,7 @@ export { IDL as ESCROW_PROGRAM_IDL } from "../../target/types/hh_escrow";
 export const HYPERSPACE_RESOLVER_PROGRAM_ID = workspace.HyperspaceResolver.programId;
 export { IDL as HYPERSPACE_RESOLVER_PROGRAM_IDL } from "../../target/types/hyperspace_resolver";
 
+export const SWITCHBOARD_RESOLVER_PROGRAM_ID = workspace.SwitchboardResolver.programId;
+export { IDL as SWITCHBOARD_RESOLVER_PROGRAM_IDL } from "../../target/types/switchboard_resolver";
+
 export const SKIP_FLAKY = process.env.SKIP_FLAKY === "1";

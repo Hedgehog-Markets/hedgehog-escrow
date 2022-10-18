@@ -42,6 +42,8 @@ const { verbose, targets } = (() => {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-for (const program of targets) {
-  build(program, verbose);
-}
+(async () => {
+  for (const program of targets) {
+    await build(program, verbose);
+  }
+})().finally(() => process.exit());

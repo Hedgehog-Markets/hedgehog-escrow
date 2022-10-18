@@ -13,9 +13,9 @@ switchboard_resolver = "Be7cUjJjBaF1tarJo4aXCYPnMr1xUAvyApaCQovt9kN"
 url = "devnet"
 
 [[test.validator.clone]]
-address = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+address = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" # Token program
 [[test.validator.clone]]
-address = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+address = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL" # Associated Token program
 
 [[test.validator.account]]
 address = "EhCHibyjh8nYUrX239Tc1GPv9PfVPeQY23d2JoJdQPSc"

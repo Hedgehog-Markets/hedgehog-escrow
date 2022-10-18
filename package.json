@@ -4,14 +4,16 @@
     "build": "ts-node ./scripts/build.ts",
     "lint": "eslint . --cache --ext cjs,mjs,ts",
     "test": "ts-node ./scripts/test.ts",
-    "validator": "ts-node ./scripts/validator.ts"
+    "validator": "ts-node  ./scripts/validator.ts"
   },
   "dependencies": {
     "@project-serum/anchor": "0.25.0",
     "@solana/spl-token": "^0.3.5",
     "@solana/web3.js": "^1.64.0",
+    "@switchboard-xyz/switchboard-v2": "^0.0.137",
     "bigint-utils": "^0.2.1",
-    "bn.js": "^5.2.1"
+    "bn.js": "^5.2.1",
+    "graceful-fs": "^4.2.10"
   },
   "devDependencies": {
     "@solana/buffer-layout": "^4.0.0",
@@ -43,6 +45,7 @@
   },
   "packageManager": "yarn@3.2.3",
   "resolutions": {
-    "@project-serum/anchor@0.25.0": "patch:@project-serum/anchor@npm%3A0.25.0#./.yarn/patches/@project-serum-anchor-npm-0.25.0-7e5041bc3a.patch"
+    "@project-serum/anchor@0.25.0": "patch:@project-serum/anchor@npm%3A0.25.0#./.yarn/patches/@project-serum-anchor-npm-0.25.0-7e5041bc3a.patch",
+    "@project-serum/anchor@^0.24.2": "patch:@project-serum/anchor@npm%3A0.25.0#./.yarn/patches/@project-serum-anchor-npm-0.25.0-7e5041bc3a.patch"
   }
 }

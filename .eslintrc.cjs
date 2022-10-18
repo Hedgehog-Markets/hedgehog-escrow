@@ -151,6 +151,13 @@ module.exports = {
         message: "Use `globalThis` instead.",
       },
     ],
+    "no-restricted-imports": [
+      "error",
+      {
+        name: "fs",
+        message: "Use `graceful-fs` instead.",
+      },
+    ],
     "no-self-compare": "warn",
     "no-sequences": "warn",
     "no-throw-literal": "error",
