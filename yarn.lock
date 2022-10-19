@@ -362,11 +362,11 @@ __metadata:
   linkType: hard
 
 "@babel/runtime@npm:^7.12.5, @babel/runtime@npm:^7.17.2":
-  version: 7.19.0
-  resolution: "@babel/runtime@npm:7.19.0"
+  version: 7.19.4
+  resolution: "@babel/runtime@npm:7.19.4"
   dependencies:
     regenerator-runtime: ^0.13.4
-  checksum: fa69c351bb05e1db3ceb9a02fdcf620c234180af68cdda02152d3561015f6d55277265d3109815992f96d910f3db709458cae4f8df1c3def66f32e0867d82294
+  checksum: 66b7e3c13e9ee1d2c9397ea89144f29a875edee266a0eb2d9971be51b32fdbafc85808c7a45e011e6681899bb804b4e2ee2aed6dc07108dbbd6b11b6cc2afba6
   languageName: node
   linkType: hard
 
@@ -918,7 +918,7 @@ __metadata:
 
 "@project-serum/anchor@patch:@project-serum/anchor@npm%3A0.25.0#./.yarn/patches/@project-serum-anchor-npm-0.25.0-7e5041bc3a.patch::locator=root-workspace-0b6124%40workspace%3A.":
   version: 0.25.0
-  resolution: "@project-serum/anchor@patch:@project-serum/anchor@npm%3A0.25.0#./.yarn/patches/@project-serum-anchor-npm-0.25.0-7e5041bc3a.patch::version=0.25.0&hash=72449a&locator=root-workspace-0b6124%40workspace%3A."
+  resolution: "@project-serum/anchor@patch:@project-serum/anchor@npm%3A0.25.0#./.yarn/patches/@project-serum-anchor-npm-0.25.0-7e5041bc3a.patch::version=0.25.0&hash=c3e4e3&locator=root-workspace-0b6124%40workspace%3A."
   dependencies:
     "@project-serum/borsh": ^0.2.5
     "@solana/web3.js": ^1.36.0
@@ -935,7 +935,7 @@ __metadata:
     snake-case: ^3.0.4
     superstruct: ^0.15.4
     toml: ^3.0.0
-  checksum: 7822e45bba4208ed37dc184e119711bcd38bf572792d9db64fd3354a9b782e94d77d34025a79c701b47ab1d7057f24c0408596af74f61e4605f660397975766b
+  checksum: 025dd759c8f6e793dc18b1333cf8728aa509aa45dfbe2fcc48e25fe24c0c16b515678da6259b6c32f4d87d987eb676b6980a2ac83fad0e21325cdd37536e7bfe
   languageName: node
   linkType: hard
 
@@ -1133,8 +1133,8 @@ __metadata:
   linkType: hard
 
 "@solana/web3.js@npm:^1.22.0, @solana/web3.js@npm:^1.32.0, @solana/web3.js@npm:^1.36.0, @solana/web3.js@npm:^1.44.3, @solana/web3.js@npm:^1.64.0":
-  version: 1.64.0
-  resolution: "@solana/web3.js@npm:1.64.0"
+  version: 1.66.1
+  resolution: "@solana/web3.js@npm:1.66.1"
   dependencies:
     "@babel/runtime": ^7.12.5
     "@noble/ed25519": ^1.7.0
@@ -1151,11 +1151,11 @@ __metadata:
     node-fetch: 2
     rpc-websockets: ^7.5.0
     superstruct: ^0.14.2
-  checksum: fabe386480e2a474c6da4431ab63f3acff8b3c0f599992b5af8df64b20977d4a12d7e9137d52874de2e9959f9a0d604409d71e91ce10df57ebe9886eb127df93
+  checksum: 8ca786b352362382dca02cb2624bb420aad1aef7e30950d459e86cdf1bd9a09332849f42e5034594e0da4bcaa8ee7434bdab83cb0c940008c69a31624b2d9866
   languageName: node
   linkType: hard
 
-"@switchboard-xyz/common@npm:^2.0.0":
+"@switchboard-xyz/common@npm:^2.0.0, @switchboard-xyz/common@npm:^2.0.2":
   version: 2.0.2
   resolution: "@switchboard-xyz/common@npm:2.0.2"
   dependencies:
@@ -5741,6 +5741,7 @@ __metadata:
     "@solana/buffer-layout": ^4.0.0
     "@solana/spl-token": ^0.3.5
     "@solana/web3.js": ^1.64.0
+    "@switchboard-xyz/common": ^2.0.2
     "@switchboard-xyz/switchboard-v2": ^0.0.137
     "@types/bn.js": ^5.1.1
     "@types/jest": ^29.1.2
