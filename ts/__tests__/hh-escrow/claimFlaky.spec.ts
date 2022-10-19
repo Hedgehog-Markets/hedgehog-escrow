@@ -1,4 +1,4 @@
-import { Keypair, PublicKey, TransactionInstruction } from "@solana/web3.js";
+import { Keypair } from "@solana/web3.js";
 
 import {
   ErrorCode,
@@ -26,6 +26,7 @@ import {
 } from "@/utils";
 
 import type { InitializeMarketParams } from "@/hh-escrow";
+import type { PublicKey, TransactionInstruction } from "@solana/web3.js";
 
 const YES_AMOUNT = 1_000_000n;
 const NO_AMOUNT = 2_000_000n;

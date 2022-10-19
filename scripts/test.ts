@@ -5,7 +5,7 @@ import os from "os";
 import path from "path";
 import process from "process";
 
-import { Connection, Keypair } from "@solana/web3.js";
+import { Connection } from "@solana/web3.js";
 import { Command } from "commander";
 import fs from "graceful-fs";
 
@@ -20,6 +20,8 @@ import {
   wallet,
   walletPath,
 } from "./utils";
+
+import type { Keypair } from "@solana/web3.js";
 
 // Default is 64, this makes transactions faster.
 const TICKS_PER_SLOT = 8;

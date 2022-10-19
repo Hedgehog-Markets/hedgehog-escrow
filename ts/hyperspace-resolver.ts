@@ -21,7 +21,7 @@ export const program = new Program(HYPERSPACE_RESOLVER_PROGRAM_IDL, HYPERSPACE_R
 export const ErrorCode = parseErrorCodes(program.idl.errors);
 
 /**
- * Gets the address of the user position account for a given user and market.
+ * Gets the address of the nft floor resolver for a given market.
  */
 export function getNftFloorAddress(market: Address): PublicKey {
   const [userPosition] = PublicKey.findProgramAddressSync(

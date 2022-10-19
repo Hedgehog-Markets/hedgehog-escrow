@@ -1,15 +1,17 @@
 import path from "path";
 
 import { Program, getProvider } from "@project-serum/anchor";
-import { SBV2_DEVNET_PID } from "@switchboard-xyz/switchboard-v2";
+import { NATIVE_MINT } from "@solana/spl-token";
+import { ProgramStateAccount, SBV2_DEVNET_PID } from "@switchboard-xyz/switchboard-v2";
 import fs from "graceful-fs";
 
 import { PROJECT_DIR, __throw } from "@/utils";
 
+import type { SwitchboardProgram, SwitchboardV2 } from "./types";
 import type { Idl } from "@project-serum/anchor";
-import type { SwitchboardProgram } from "@switchboard-xyz/switchboard-v2";
 
-type SwitchboardV2 = SwitchboardProgram extends Program<infer IDL> ? IDL : never;
+export type { SwitchboardProgram, SwitchboardV2 } from "./types";
+
 type IdlTypeDef = NonNullable<Idl["types"]>[number];
 
 export const loadSwitchboardProgram = (async () => {
@@ -53,5 +55,10 @@ export const loadSwitchboardProgram = (async () => {
     "utf-8",
   );
 
-  return new Program(idl, SBV2_DEVNET_PID, provider) as unknown as SwitchboardProgram;
+  const switchboard = new Program(idl, SBV2_DEVNET_PID, provider) as unknown as SwitchboardProgram;
+
+  // Ensure the program state account is created.
+  await ProgramStateAccount.create(switchboard, { mint: NATIVE_MINT });
+
+  return switchboard;
 })();

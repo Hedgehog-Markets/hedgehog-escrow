@@ -1,5 +1,5 @@
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { Keypair, PublicKey, SystemProgram, TransactionInstruction } from "@solana/web3.js";
+import { Keypair, SystemProgram } from "@solana/web3.js";
 
 import {
   program as escrowProgram,
@@ -25,6 +25,7 @@ import {
 import type { InitializeMarketParams, Outcome } from "@/hh-escrow";
 import type { InitializeNftFloorParams } from "@/hyperspace-resolver";
 import type { IntoU64 } from "@/utils";
+import type { PublicKey, TransactionInstruction } from "@solana/web3.js";
 
 const YES_AMOUNT = intoU64BN(100n);
 const NO_AMOUNT = intoU64BN(200n);

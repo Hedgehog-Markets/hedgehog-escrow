@@ -60,8 +60,8 @@ pub fn handler(ctx: Context<Resolve>) -> Result<()> {
         let result = result.mantissa;
 
         match result {
-            0 => Outcome::No,
             1 => Outcome::Yes,
+            2 => Outcome::No,
             _ => {
                 msg!("Invalid feed result: {}", result);
 

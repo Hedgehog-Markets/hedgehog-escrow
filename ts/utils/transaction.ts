@@ -1,34 +1,19 @@
-// TODO: Improve this.
-
 import {
   AnchorError,
   LangErrorMessage,
   ProgramErrorStack,
   getProvider,
+  workspace,
 } from "@project-serum/anchor";
-import { ASSOCIATED_TOKEN_PROGRAM_ID, TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import {
-  PublicKey,
-  SendTransactionError,
-  Signer,
-  SystemProgram,
-  Transaction,
-  TransactionInstruction,
-} from "@solana/web3.js";
+import { SendTransactionError, Transaction } from "@solana/web3.js";
 
-import {
-  ESCROW_PROGRAM_ID,
-  ESCROW_PROGRAM_IDL,
-  HYPERSPACE_RESOLVER_PROGRAM_ID,
-  HYPERSPACE_RESOLVER_PROGRAM_IDL,
-  SWITCHBOARD_RESOLVER_PROGRAM_ID,
-  SWITCHBOARD_RESOLVER_PROGRAM_IDL,
-} from "./constants";
 import { __throw } from "./misc";
 import { atoken, spl } from "./spl";
 import { system } from "./system";
 
 import type { IdlErrorCode } from "./idl";
+import type { Program } from "@project-serum/anchor";
+import type { PublicKey, Signer, TransactionInstruction } from "@solana/web3.js";
 
 const errors = new Map<string, Map<number, string>>();
 
@@ -39,13 +24,18 @@ function addErrors(programId: PublicKey, idlErrors: Array<IdlErrorCode>) {
   );
 }
 
-addErrors(SystemProgram.programId, system.idl.errors);
-addErrors(TOKEN_PROGRAM_ID, spl.idl.errors);
-addErrors(ASSOCIATED_TOKEN_PROGRAM_ID, atoken.idl.errors);
+addErrors(system.programId, system.idl.errors);
+addErrors(spl.programId, spl.idl.errors);
+addErrors(atoken.programId, atoken.idl.errors);
 
-addErrors(ESCROW_PROGRAM_ID, ESCROW_PROGRAM_IDL.errors);
-addErrors(HYPERSPACE_RESOLVER_PROGRAM_ID, HYPERSPACE_RESOLVER_PROGRAM_IDL.errors);
-addErrors(SWITCHBOARD_RESOLVER_PROGRAM_ID, SWITCHBOARD_RESOLVER_PROGRAM_IDL.errors);
+{
+  workspace[0]; // Ensure anchor has loaded the workspace.
+  for (const program of Object.values<Program>(workspace)) {
+    if (program.idl.errors) {
+      addErrors(program.programId, program.idl.errors);
+    }
+  }
+}
 
 export async function sendTx(
   tx: Transaction | Array<TransactionInstruction>,
@@ -138,7 +128,7 @@ export class ProgramError extends SendTxError {
   }
 }
 
-function translateError(
+export function translateError(
   message: string,
   logs: Array<string>,
 ): Error & {
@@ -199,3 +189,18 @@ function translateError(
   // Unable to parse the error code.
   return new SendTxError(message, logs, programErrorStack);
 }
+
+export const mapTxErr = <T>(promise: Promise<T>): Promise<T> =>
+  promise.catch((err) => {
+    if (err instanceof SendTransactionError && err.logs) {
+      const e = translateError(err.message, err.logs);
+      e.cause = err;
+      if (e.stack && err.stack) {
+        const lines1 = e.stack.split("\n").slice(0, 1);
+        const lines2 = err.stack.split("\n").slice(1);
+        e.stack = lines1.concat(lines2).join("\n");
+      }
+      throw e;
+    }
+    throw err;
+  });

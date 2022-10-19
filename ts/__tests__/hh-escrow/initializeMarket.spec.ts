@@ -1,6 +1,6 @@
 import { LangErrorCode } from "@project-serum/anchor";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
+import { Keypair, SystemProgram } from "@solana/web3.js";
 
 import {
   ErrorCode,
@@ -13,6 +13,7 @@ import {
 import { __throw, createInitMintInstructions, intoU64BN, sendTx, unixTimestamp } from "@/utils";
 
 import type { InitializeMarketParams, Outcome } from "@/hh-escrow";
+import type { PublicKey } from "@solana/web3.js";
 
 const YES_AMOUNT = 1_000_000n;
 const NO_AMOUNT = 2_000_000n;

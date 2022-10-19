@@ -16,7 +16,9 @@ import {
 } from "jest-matcher-utils";
 import { formatStackTrace, separateMessageFromStack } from "jest-message-util";
 
-import { IntoBigInt, __throw, getBalance, intoBN } from "@/utils";
+import { __throw, getBalance, intoBN } from "@/utils";
+
+import type { IntoBigInt } from "@/utils";
 
 type Constructor = new (...args: never) => unknown;
 

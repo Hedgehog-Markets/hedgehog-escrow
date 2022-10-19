@@ -4,7 +4,9 @@ import process from "process";
 
 import { Command } from "commander";
 
-import { Program, build, programs } from "./utils";
+import { build, programs } from "./utils";
+
+import type { Program } from "./utils";
 
 ////////////////////////////////////////////////////////////////////////////////
 
