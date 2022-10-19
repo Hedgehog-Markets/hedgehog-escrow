@@ -1,5 +1,6 @@
 import {
   AnchorError,
+  AnchorProvider,
   LangErrorMessage,
   ProgramErrorStack,
   getProvider,
@@ -204,3 +205,13 @@ export const mapTxErr = <T>(promise: Promise<T>): Promise<T> =>
     }
     throw err;
   });
+
+// Install a wrapper around the anchor provider `sendAndConfirm` to give better errors.
+{
+  const provider = getProvider();
+  const oldFn = provider.sendAndConfirm ?? AnchorProvider.prototype.sendAndConfirm;
+
+  provider.sendAndConfirm = function (...args) {
+    return mapTxErr(oldFn.call(this, ...args));
+  };
+}
