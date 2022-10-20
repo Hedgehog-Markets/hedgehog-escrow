@@ -1,7 +1,6 @@
 use std::slice;
 
 use anchor_lang::prelude::*;
-use switchboard_v2::AggregatorAccountData;
 
 use common::traits::KeyRef;
 use hh_escrow::program::HhEscrow;
@@ -9,6 +8,7 @@ use hh_escrow::state::Market;
 
 use crate::error::ErrorCode;
 use crate::state::{Resolver, RESOLVER_SEED};
+use crate::utils::load_aggregator_account;
 
 #[derive(Accounts)]
 pub struct Initialize<'info> {
@@ -118,7 +118,7 @@ pub fn handler(ctx: Context<Initialize>) -> Result<()> {
     } = ctx.accounts;
 
     // Attempt to load the feed account, to validate the account data.
-    AggregatorAccountData::new(feed).map_err(|err| err.with_account_name("feed"))?;
+    load_aggregator_account(feed).map_err(|err| err.with_account_name("feed"))?;
 
     let bump = get_bump!(ctx, resolver)?;
     let signer_seeds = &[

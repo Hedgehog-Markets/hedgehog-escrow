@@ -1,5 +1,4 @@
 use anchor_lang::prelude::*;
-use switchboard_v2::AggregatorAccountData;
 
 use common::sys;
 use common::traits::KeyRef;
@@ -8,6 +7,7 @@ use hh_escrow::state::{Market, Outcome};
 
 use crate::error::ErrorCode;
 use crate::state::{Resolver, RESOLVER_SEED};
+use crate::utils::load_aggregator_account;
 
 #[derive(Accounts)]
 pub struct Resolve<'info> {
@@ -55,7 +55,7 @@ pub fn handler(ctx: Context<Resolve>) -> Result<()> {
         return Err(error!(ErrorCode::TimestampNotPassed));
     }
 
-    let result = AggregatorAccountData::new(feed)?.get_result()?;
+    let result = load_aggregator_account(feed)?.get_result()?;
     let outcome = if result.scale == 0 {
         let result = result.mantissa;
 

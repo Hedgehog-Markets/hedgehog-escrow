@@ -20,9 +20,10 @@ import type { OracleQueueAccount } from "@switchboard-xyz/switchboard-v2";
 describe("initialize switchboard resolver", () => {
   const authority = program.provider.wallet.publicKey;
 
-  let switchboard: SwitchboardProgram,
-    queue: OracleQueueAccount,
-    aggreggator: AggregatorAccount,
+  let switchboard: SwitchboardProgram;
+
+  let queue: OracleQueueAccount,
+    aggregator: AggregatorAccount,
     market: Keypair,
     mint: Keypair,
     resolver: PublicKey;
@@ -33,7 +34,7 @@ describe("initialize switchboard resolver", () => {
     program.methods.initialize().accounts({
       resolver,
       market: market.publicKey,
-      feed: aggreggator.publicKey,
+      feed: aggregator.publicKey,
       creator: authority,
       escrowProgram: escrowProgram.programId,
       systemProgram: SystemProgram.programId,
@@ -47,8 +48,8 @@ describe("initialize switchboard resolver", () => {
     // Create queue, crank, and oracle.
     ({ queue } = await createQueue(switchboard));
 
-    // Create aggreggator.
-    aggreggator = await AggregatorAccount.create(switchboard, {
+    // Create aggregator.
+    aggregator = await AggregatorAccount.create(switchboard, {
       authority,
       batchSize: 1,
       minRequiredOracleResults: 1,
@@ -167,6 +168,14 @@ describe("initialize switchboard resolver", () => {
     ).rejects.toThrowProgramError(ErrorCode.IncorrectCreator);
   });
 
+  it("fails if feed is incorrect", async () => {
+    expect.assertions(1);
+
+    await expect(
+      initialize().accounts({ feed: market.publicKey }).rpc(),
+    ).rejects.toThrowProgramError(LangErrorCode.AccountDiscriminatorMismatch);
+  });
+
   it("successfully inititializes resolver", async () => {
     expect.assertions(2);
 
@@ -175,6 +184,6 @@ describe("initialize switchboard resolver", () => {
     const data = await program.account.resolver.fetch(resolver);
 
     expect(data.market).toEqualPubkey(market.publicKey);
-    expect(data.feed).toEqualPubkey(aggreggator.publicKey);
+    expect(data.feed).toEqualPubkey(aggregator.publicKey);
   });
 });
