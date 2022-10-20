@@ -83,11 +83,13 @@ module.exports = {
         "@typescript-eslint/explicit-module-boundary-types": "off",
         "@typescript-eslint/no-empty-function": "off",
         "@typescript-eslint/no-unused-vars": "off",
+        "@typescript-eslint/no-floating-promises": "warn",
 
         "import/no-extraneous-dependencies": "off",
 
         "jest/no-commented-out-tests": "off",
         "jest/no-disabled-tests": "off",
+        "jest/prefer-expect-assertions": "warn",
 
         "no-console": "off",
       },
