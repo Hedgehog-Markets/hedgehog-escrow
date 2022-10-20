@@ -1,123 +1,180 @@
-import { NATIVE_MINT } from "@solana/spl-token";
-import { OracleJob } from "@switchboard-xyz/common";
-import {
-  AggregatorAccount,
-  CrankAccount,
-  JobAccount,
-  LeaseAccount,
-  OracleAccount,
-  OracleQueueAccount,
-  PermissionAccount,
-  ProgramStateAccount,
-  SwitchboardPermission,
-  programWallet,
-} from "@switchboard-xyz/switchboard-v2";
+import { LangErrorCode } from "@project-serum/anchor";
+import { Keypair, SystemProgram } from "@solana/web3.js";
+import { AggregatorAccount } from "@switchboard-xyz/switchboard-v2";
 import BN from "bn.js";
 
-import { loadSwitchboardProgram } from "@/switchboard";
-import { program } from "@/switchboard-resolver";
-import { toBuffer } from "@/utils";
+import {
+  program as escrowProgram,
+  getAuthorityAddress as getMarketAuthorityAddress,
+  getNoTokenAccountAddress,
+  getYesTokenAccountAddress,
+} from "@/hh-escrow";
+import { createQueue, loadSwitchboardProgram } from "@/switchboard";
+import { ErrorCode, getResolverAddress, program } from "@/switchboard-resolver";
+import { createInitMintInstructions, intoU64BN, spl, unixTimestamp } from "@/utils";
 
 import type { SwitchboardProgram } from "@/switchboard";
-import type { IOracleJob } from "@switchboard-xyz/common";
+import type { PublicKey } from "@solana/web3.js";
+import type { OracleQueueAccount } from "@switchboard-xyz/switchboard-v2";
 
 describe("initialize switchboard resolver", () => {
+  const authority = program.provider.wallet.publicKey;
+
   let switchboard: SwitchboardProgram,
     queue: OracleQueueAccount,
-    crank: CrankAccount,
-    oracle: OracleAccount,
     aggreggator: AggregatorAccount,
-    lease: LeaseAccount,
-    job: JobAccount;
+    market: Keypair,
+    mint: Keypair,
+    resolver: PublicKey;
+
+  //////////////////////////////////////////////////////////////////////////////
+
+  const initialize = () =>
+    program.methods.initialize().accounts({
+      resolver,
+      market: market.publicKey,
+      feed: aggreggator.publicKey,
+      creator: authority,
+      escrowProgram: escrowProgram.programId,
+      systemProgram: SystemProgram.programId,
+    });
+
+  //////////////////////////////////////////////////////////////////////////////
 
   beforeAll(async () => {
     switchboard = await loadSwitchboardProgram;
 
-    const [stateAccount] = ProgramStateAccount.fromSeed(switchboard);
-    const { tokenVault } = await switchboard.account.sbState.fetch(stateAccount.publicKey);
+    // Create queue, crank, and oracle.
+    ({ queue } = await createQueue(switchboard));
 
-    const authority = programWallet(switchboard);
-
-    queue = await OracleQueueAccount.create(switchboard, {
-      authority: authority.publicKey,
-      reward: new BN(0),
-      minStake: new BN(0),
-      mint: NATIVE_MINT,
-    });
-
-    crank = await CrankAccount.create(switchboard, {
-      queueAccount: queue,
-    });
-
-    oracle = await OracleAccount.create(switchboard, {
-      queueAccount: queue,
-    });
-
-    {
-      const oraclePermission = await PermissionAccount.create(switchboard, {
-        authority: authority.publicKey,
-        granter: queue.publicKey,
-        grantee: oracle.publicKey,
-      });
-      await oraclePermission.set({
-        authority,
-        permission: SwitchboardPermission.PERMIT_ORACLE_HEARTBEAT,
-        enable: true,
-      });
-      await oracle.heartbeat(authority);
-    }
-
+    // Create aggreggator.
     aggreggator = await AggregatorAccount.create(switchboard, {
-      authority: authority.publicKey,
+      authority,
       batchSize: 1,
-      minRequiredJobResults: 1,
       minRequiredOracleResults: 1,
+      minRequiredJobResults: 1,
       minUpdateDelaySeconds: 10,
       queueAccount: queue,
     });
 
+    // Create market.
     {
-      const aggreggatorPermission = await PermissionAccount.create(switchboard, {
-        authority: authority.publicKey,
-        granter: queue.publicKey,
-        grantee: aggreggator.publicKey,
+      market = Keypair.generate();
+      mint = Keypair.generate();
+      resolver = getResolverAddress(market);
+
+      const marketAuthority = getMarketAuthorityAddress(market);
+      const [yesTokenAccount] = getYesTokenAccountAddress(market);
+      const [noTokenAccount] = getNoTokenAccountAddress(market);
+
+      const preIxs = await createInitMintInstructions({
+        mint,
+        mintAuthority: authority,
       });
-      await aggreggatorPermission.set({
-        authority,
-        permission: SwitchboardPermission.PERMIT_ORACLE_QUEUE_USAGE,
-        enable: true,
-      });
+
+      const closeTs = intoU64BN(unixTimestamp() + 3600n);
+      const initialAmount = new BN(1_000_000);
+
+      await escrowProgram.methods
+        .initializeMarket({
+          closeTs,
+          expiryTs: closeTs,
+          resolutionDelay: 3600,
+          yesAmount: initialAmount,
+          noAmount: initialAmount,
+          resolver,
+          uri: "",
+        })
+        .accounts({
+          market: market.publicKey,
+          authority: marketAuthority,
+          creator: authority,
+          tokenMint: mint.publicKey,
+          yesTokenAccount,
+          noTokenAccount,
+          systemProgram: SystemProgram.programId,
+          tokenProgram: spl.programId,
+        })
+        .preInstructions(preIxs)
+        .signers([mint, market])
+        .rpc();
     }
+  });
 
-    lease = await LeaseAccount.create(switchboard, {
-      loadAmount: new BN(0),
-      funder: tokenVault,
-      funderAuthority: authority,
-      oracleQueueAccount: queue,
-      aggregatorAccount: aggreggator,
-    });
+  //////////////////////////////////////////////////////////////////////////////
 
-    {
-      const jobDefinition: IOracleJob = {
-        tasks: [
-          {
-            valueTask: { big: "1" },
-          },
-        ],
-      };
-      const jobData = OracleJob.encodeDelimited(jobDefinition).finish();
+  it("fails if resolver is incorrect", async () => {
+    expect.assertions(1);
 
-      job = await JobAccount.create(switchboard, {
-        authority: authority.publicKey,
-        data: toBuffer(jobData),
-      });
-    }
+    const market = Keypair.generate();
 
-    await aggreggator.addJob(job, authority);
-    await crank.push({ aggregatorAccount: aggreggator });
+    const marketAuthority = getMarketAuthorityAddress(market);
+    const [yesTokenAccount] = getYesTokenAccountAddress(market);
+    const [noTokenAccount] = getNoTokenAccountAddress(market);
+
+    const resolver = getResolverAddress(market);
+
+    const wrongResolver = Keypair.generate();
+
+    const closeTs = intoU64BN(unixTimestamp() + 3600n);
+    const initialAmount = new BN(1_000_000);
+
+    await escrowProgram.methods
+      .initializeMarket({
+        closeTs,
+        expiryTs: closeTs,
+        resolutionDelay: 3600,
+        yesAmount: initialAmount,
+        noAmount: initialAmount,
+        resolver: wrongResolver.publicKey,
+        uri: "",
+      })
+      .accounts({
+        market: market.publicKey,
+        authority: marketAuthority,
+        creator: authority,
+        tokenMint: mint.publicKey,
+        yesTokenAccount,
+        noTokenAccount,
+        systemProgram: SystemProgram.programId,
+        tokenProgram: spl.programId,
+      })
+      .signers([market])
+      .rpc();
+
+    await expect(
+      initialize().accounts({ resolver, market: market.publicKey }).rpc(),
+    ).rejects.toThrowProgramError(ErrorCode.IncorrectResolver);
+  });
+
+  it("fails if resolver is not PDA", async () => {
+    expect.assertions(1);
+
+    const wrongResolver = Keypair.generate();
+
+    await expect(
+      initialize().accounts({ resolver: wrongResolver.publicKey }).rpc(),
+    ).rejects.toThrowProgramError(LangErrorCode.ConstraintSeeds);
+  });
+
+  it("fails if creator is incorrect", async () => {
+    expect.assertions(1);
+
+    const wrongCreator = Keypair.generate();
+
+    await expect(
+      initialize().accounts({ creator: wrongCreator.publicKey }).signers([wrongCreator]).rpc(),
+    ).rejects.toThrowProgramError(ErrorCode.IncorrectCreator);
   });
 
   it("successfully inititializes resolver", async () => {
-    program.methods.initialize().accounts({});
+    expect.assertions(2);
+
+    await initialize().rpc();
+
+    const data = await program.account.resolver.fetch(resolver);
+
+    expect(data.market).toEqualPubkey(market.publicKey);
+    expect(data.feed).toEqualPubkey(aggreggator.publicKey);
   });
 });

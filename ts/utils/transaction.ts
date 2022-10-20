@@ -6,7 +6,7 @@ import {
   getProvider,
   workspace,
 } from "@project-serum/anchor";
-import { SendTransactionError, Transaction } from "@solana/web3.js";
+import { Transaction, SendTransactionError as Web3SendTransactionError } from "@solana/web3.js";
 
 import { __throw } from "./misc";
 import { atoken, spl } from "./spl";
@@ -14,15 +14,16 @@ import { system } from "./system";
 
 import type { IdlErrorCode } from "./idl";
 import type { Program } from "@project-serum/anchor";
-import type { PublicKey, Signer, TransactionInstruction } from "@solana/web3.js";
+import type { ConfirmOptions, PublicKey, Signer, TransactionInstruction } from "@solana/web3.js";
 
 const errors = new Map<string, Map<number, string>>();
 
-function addErrors(programId: PublicKey, idlErrors: Array<IdlErrorCode>) {
-  errors.set(
-    programId.toBase58(),
-    new Map(idlErrors.map(({ code, name, msg }) => [code, msg ?? name])),
-  );
+export function addErrors(programId: PublicKey, idlErrors: Array<IdlErrorCode>): void {
+  const key = programId.toBase58();
+  if (errors.has(key)) {
+    throw new Error(`Already added errors for ${key}`);
+  }
+  errors.set(key, new Map(idlErrors.map(({ code, name, msg }) => [code, msg ?? name])));
 }
 
 addErrors(system.programId, system.idl.errors);
@@ -41,6 +42,7 @@ addErrors(atoken.programId, atoken.idl.errors);
 export async function sendTx(
   tx: Transaction | Array<TransactionInstruction>,
   signers: Array<Signer> = [],
+  opts?: ConfirmOptions,
 ): Promise<string> {
   if (!(tx instanceof Transaction)) {
     tx = new Transaction().add(...tx);
@@ -49,7 +51,15 @@ export async function sendTx(
   const provider = getProvider();
   const connection = provider.connection;
 
-  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+  if (!opts) {
+    if (provider instanceof AnchorProvider) {
+      opts = provider.opts;
+    } else {
+      opts = AnchorProvider.defaultOptions();
+    }
+  }
+
+  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash(opts);
 
   tx.feePayer = provider.publicKey;
   tx.recentBlockhash = blockhash;
@@ -61,24 +71,16 @@ export async function sendTx(
   }
 
   const rawTx = tx.serialize();
+  const signature = await mapTxErr(connection.sendRawTransaction(rawTx, opts));
 
-  let signature: string;
-  try {
-    signature = await connection.sendRawTransaction(rawTx);
-  } catch (err) {
-    if (err instanceof SendTransactionError && err.logs) {
-      throw translateError(err.message, err.logs);
-    }
-    throw err;
-  }
-
-  const status = (
-    await connection.confirmTransaction({
+  const { value: status } = await connection.confirmTransaction(
+    {
       signature,
       blockhash,
       lastValidBlockHeight,
-    })
-  ).value;
+    },
+    opts.commitment,
+  );
   if (!status.err) {
     return signature;
   }
@@ -90,18 +92,18 @@ export async function sendTx(
         commitment: "confirmed",
         maxSupportedTransactionVersion: 0,
       })
-    )?.meta?.logMessages ?? __throw(new ConfirmTxError(err));
+    )?.meta?.logMessages ?? __throw(new ConfirmTransactionError(err));
 
   throw translateError(err, logs);
 }
 
-export class ConfirmTxError extends Error {
+export class ConfirmTransactionError extends Error {
   constructor(message: string) {
     super(message);
   }
 }
 
-export class SendTxError extends Error {
+export class SendTransactionError extends Error {
   constructor(
     message: string,
     readonly logs: Array<string>,
@@ -118,7 +120,7 @@ export class SendTxError extends Error {
   }
 }
 
-export class ProgramError extends SendTxError {
+export class ProgramError extends SendTransactionError {
   constructor(
     message: string,
     logs: Array<string>,
@@ -159,7 +161,7 @@ export function translateError(
   }
 
   if (!unparsedErrorCode) {
-    return new SendTxError(message, logs, programErrorStack);
+    return new SendTransactionError(message, logs, programErrorStack);
   }
 
   let errorCode: number;
@@ -167,12 +169,12 @@ export function translateError(
     // eslint-disable-next-line radix
     errorCode = parseInt(unparsedErrorCode);
   } catch (parseErr) {
-    return new SendTxError(message, logs, programErrorStack);
+    return new SendTransactionError(message, logs, programErrorStack);
   }
 
   const programErrors = errors.get(program.toBase58());
   if (!programErrors) {
-    return new SendTxError(message, logs, programErrorStack);
+    return new SendTransactionError(message, logs, programErrorStack);
   }
 
   // Parse user error.
@@ -188,12 +190,12 @@ export function translateError(
   }
 
   // Unable to parse the error code.
-  return new SendTxError(message, logs, programErrorStack);
+  return new SendTransactionError(message, logs, programErrorStack);
 }
 
 export const mapTxErr = <T>(promise: Promise<T>): Promise<T> =>
   promise.catch((err) => {
-    if (err instanceof SendTransactionError && err.logs) {
+    if (err instanceof Web3SendTransactionError && err.logs) {
       const e = translateError(err.message, err.logs);
       e.cause = err;
       if (e.stack && err.stack) {

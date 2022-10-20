@@ -1,5 +1,5 @@
 import { isError } from "@jest/expect-utils";
-import { AnchorError, ProgramError } from "@project-serum/anchor";
+import { AnchorError, ProgramError as AnchorProgramError } from "@project-serum/anchor";
 import { Keypair, PublicKey } from "@solana/web3.js";
 import BN, { isBN } from "bn.js";
 import { isPrimitive } from "jest-get-type";
@@ -16,7 +16,7 @@ import {
 } from "jest-matcher-utils";
 import { formatStackTrace, separateMessageFromStack } from "jest-message-util";
 
-import { __throw, getBalance, intoBN } from "@/utils";
+import { ProgramError, __throw, getBalance, intoBN } from "@/utils";
 
 import type { IntoBigInt } from "@/utils";
 
@@ -126,7 +126,11 @@ expect.extend({
 
     if (
       thrown === null ||
-      !(thrown.value instanceof AnchorError || thrown.value instanceof ProgramError)
+      !(
+        thrown.value instanceof AnchorError ||
+        thrown.value instanceof AnchorProgramError ||
+        thrown.value instanceof ProgramError
+      )
     ) {
       return {
         pass: false,
