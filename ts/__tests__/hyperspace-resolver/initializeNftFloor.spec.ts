@@ -171,12 +171,7 @@ describe("initialize nft floor resolver", () => {
 
     expect(acknowledged).toBe(false);
 
-    try {
-      await initNftFloor({ floorPrice, projectId }).rpc();
-    } catch (err) {
-      console.error(err);
-      throw err;
-    }
+    await initNftFloor({ floorPrice, projectId }).rpc();
 
     const info = await program.account.nftFloor.fetch(resolver);
 

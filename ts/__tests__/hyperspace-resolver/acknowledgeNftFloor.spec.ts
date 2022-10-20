@@ -1,3 +1,4 @@
+import { AnchorError } from "@project-serum/anchor";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { Keypair, SystemProgram } from "@solana/web3.js";
 
@@ -133,7 +134,14 @@ describe("acknowledge nft floor resolver", () => {
       try {
         await acknowledgeNftFloor().signers([authority]).rpc();
       } catch (err) {
-        // noop
+        // Desync with the chain may cause it to report not acknowledged,
+        // if the error `AlreadyAcknowledged` then ignore it.
+        if (
+          !(err instanceof AnchorError) ||
+          err.error.errorCode.number !== ErrorCode.AlreadyAcknowledged
+        ) {
+          throw err;
+        }
       }
     }
     info = await program.account.nftFloor.fetch(resolver);
