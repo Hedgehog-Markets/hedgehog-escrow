@@ -6,7 +6,13 @@ import {
   getProvider,
   workspace,
 } from "@project-serum/anchor";
-import { Transaction, SendTransactionError as Web3SendTransactionError } from "@solana/web3.js";
+import {
+  Message,
+  PACKET_DATA_SIZE,
+  PublicKey,
+  Transaction,
+  SendTransactionError as Web3SendTransactionError,
+} from "@solana/web3.js";
 
 import { __throw } from "./misc";
 import { atoken, spl } from "./spl";
@@ -14,7 +20,7 @@ import { system } from "./system";
 
 import type { IdlErrorCode } from "./idl";
 import type { Program } from "@project-serum/anchor";
-import type { ConfirmOptions, PublicKey, Signer, TransactionInstruction } from "@solana/web3.js";
+import type { ConfirmOptions, Connection, Signer, TransactionInstruction } from "@solana/web3.js";
 
 const errors = new Map<string, Map<number, string>>();
 
@@ -26,17 +32,172 @@ export function addErrors(programId: PublicKey, idlErrors: Array<IdlErrorCode>):
   errors.set(key, new Map(idlErrors.map(({ code, name, msg }) => [code, msg ?? name])));
 }
 
+export const mapTxErr = <T>(promise: Promise<T>): Promise<T> =>
+  promise.catch((err) => {
+    if (err instanceof Web3SendTransactionError && err.logs) {
+      const e = translateError(err.message, err.logs);
+      e.cause = err;
+      if (e.stack && err.stack) {
+        const lines1 = e.stack.split("\n").slice(0, 1);
+        const lines2 = err.stack.split("\n").slice(1);
+        e.stack = lines1.concat(lines2).join("\n");
+      }
+      throw e;
+    }
+    throw err;
+  });
+
 addErrors(system.programId, system.idl.errors);
 addErrors(spl.programId, spl.idl.errors);
 addErrors(atoken.programId, atoken.idl.errors);
 
+// Add errors for all programs in the Anchor workspace.
 {
-  workspace[0]; // Ensure anchor has loaded the workspace.
+  workspace[0]; // Ensure Anchor has loaded the workspace.
   for (const program of Object.values<Program>(workspace)) {
     if (program.idl.errors) {
       addErrors(program.programId, program.idl.errors);
     }
   }
+}
+
+// Install a wrapper around the anchor provider `sendAndConfirm` to give better errors.
+{
+  const provider = getProvider();
+  const oldFn = provider.sendAndConfirm ?? sendTx;
+
+  provider.sendAndConfirm = function (...args) {
+    return mapTxErr(oldFn.call(this, ...args));
+  };
+}
+
+export function packInstructions(
+  ixs: Array<TransactionInstruction | Array<TransactionInstruction>>,
+  feePayer: PublicKey = PublicKey.default,
+  blockhash: string = PublicKey.default.toBase58(),
+): Array<Transaction> {
+  const buildTx = (ixs: Array<TransactionInstruction>) => {
+    const tx = new Transaction();
+    tx.feePayer = feePayer;
+    tx.recentBlockhash = blockhash;
+    return ixs.length > 0 ? tx.add(...ixs) : tx;
+  };
+
+  const getTxSize = (tx: Transaction) => {
+    const encodedLengthBytes = (len: number) => {
+      let bytes = 0;
+      let remLen = len;
+      for (;;) {
+        remLen >>= 7;
+        bytes++;
+        if (remLen === 0) {
+          break;
+        }
+      }
+      return bytes;
+    };
+
+    try {
+      // Work around warning messages for transactions with no instructions.
+      let message: Message;
+      if (tx.instructions.length === 0) {
+        message = new Message({
+          header: {
+            numRequiredSignatures: 1,
+            numReadonlySignedAccounts: 0,
+            numReadonlyUnsignedAccounts: 0,
+          },
+          accountKeys: [tx.feePayer ?? feePayer],
+          recentBlockhash: tx.recentBlockhash ?? blockhash,
+          instructions: [],
+        });
+      } else {
+        message = tx.compileMessage();
+      }
+
+      {
+        const signedKeys = message.accountKeys.slice(0, message.header.numRequiredSignatures);
+
+        let valid = false;
+        if (tx.signatures.length === signedKeys.length) {
+          valid = tx.signatures.every((pair, index) => {
+            return (signedKeys[index] as PublicKey).equals(pair.publicKey);
+          });
+        }
+
+        if (!valid) {
+          tx.signatures = signedKeys.map((publicKey) => ({
+            signature: null,
+            publicKey,
+          }));
+        }
+      }
+
+      return (
+        message.serialize().byteLength +
+        tx.signatures.length * 64 +
+        encodedLengthBytes(tx.signatures.length)
+      );
+    } catch (_) {
+      return Number.MAX_SAFE_INTEGER;
+    }
+  };
+
+  const packed: Array<Transaction> = [];
+
+  let currentTx = buildTx([]);
+  for (const ixGroup of ixs) {
+    const newTx = buildTx(Array.isArray(ixGroup) ? ixGroup : [ixGroup]);
+    const txSize = getTxSize(newTx);
+    if (PACKET_DATA_SIZE >= getTxSize(currentTx) + txSize) {
+      // If `newTx` can be added to the current transaction, then do so.
+      currentTx.add(...newTx.instructions);
+    } else if (PACKET_DATA_SIZE <= txSize) {
+      // If `newTx` is too large to fit in the transaction, then throw error.
+      throw new Error("A grouping of instructions too large to fit in a single transaction");
+    } else {
+      // If `new` cannot be added to `currentTx`, push `currentTx` and move forward.
+      packed.push(currentTx);
+      currentTx = newTx;
+    }
+  }
+
+  // If the final transaction has at least 1 instruction, add it to the pack.
+  if (currentTx.instructions.length > 0) {
+    packed.push(currentTx);
+  }
+
+  return packed;
+}
+
+export function signTransactions(
+  txs: Array<Transaction>,
+  signers: Array<Signer>,
+): Array<Transaction> {
+  const sigMap = new Map(signers.map((signer) => [signer.publicKey.toBase58(), signer]));
+
+  // Sign transactions with the appropriate signers.
+  for (const tx of txs) {
+    const txSigners = [];
+
+    // Collect appropriate signers for the transaction.
+    for (const ix of tx.instructions) {
+      for (const { isSigner, pubkey } of ix.keys) {
+        if (isSigner) {
+          const signer = sigMap.get(pubkey.toBase58());
+          if (signer) {
+            txSigners.push(signer);
+          }
+        }
+      }
+    }
+
+    if (txSigners.length > 0) {
+      tx.partialSign(...txSigners);
+    }
+  }
+
+  return txs;
 }
 
 export async function sendTx(
@@ -70,17 +231,30 @@ export async function sendTx(
     tx.partialSign(signer);
   }
 
+  return sendAndConfirmTransaction(connection, tx, opts);
+}
+
+export async function sendAndConfirmTransaction(
+  connection: Connection,
+  tx: Transaction,
+  opts?: ConfirmOptions,
+): Promise<string> {
   const rawTx = tx.serialize();
   const signature = await mapTxErr(connection.sendRawTransaction(rawTx, opts));
 
-  const { value: status } = await connection.confirmTransaction(
-    {
-      signature,
-      blockhash,
-      lastValidBlockHeight,
-    },
-    opts.commitment,
-  );
+  const { recentBlockhash: blockhash, lastValidBlockHeight } = tx;
+  const { value: status } =
+    blockhash != null && lastValidBlockHeight != null
+      ? await connection.confirmTransaction(
+          {
+            signature,
+            blockhash,
+            lastValidBlockHeight,
+          },
+          opts?.commitment,
+        )
+      : await connection.confirmTransaction(signature, opts?.commitment);
+
   if (!status.err) {
     return signature;
   }
@@ -191,29 +365,4 @@ export function translateError(
 
   // Unable to parse the error code.
   return new SendTransactionError(message, logs, programErrorStack);
-}
-
-export const mapTxErr = <T>(promise: Promise<T>): Promise<T> =>
-  promise.catch((err) => {
-    if (err instanceof Web3SendTransactionError && err.logs) {
-      const e = translateError(err.message, err.logs);
-      e.cause = err;
-      if (e.stack && err.stack) {
-        const lines1 = e.stack.split("\n").slice(0, 1);
-        const lines2 = err.stack.split("\n").slice(1);
-        e.stack = lines1.concat(lines2).join("\n");
-      }
-      throw e;
-    }
-    throw err;
-  });
-
-// Install a wrapper around the anchor provider `sendAndConfirm` to give better errors.
-{
-  const provider = getProvider();
-  const oldFn = provider.sendAndConfirm ?? AnchorProvider.prototype.sendAndConfirm;
-
-  provider.sendAndConfirm = function (...args) {
-    return mapTxErr(oldFn.call(this, ...args));
-  };
 }
