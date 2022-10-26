@@ -1,6 +1,6 @@
 #[anchor_lang::error_code]
 pub enum ErrorCode {
-    #[msg("Missing bump seed.")]
+    #[msg("Missing bump seed")]
     MissingBumpSeed,
     #[msg("Resolver does not match the market resolver address")]
     IncorrectResolver,
