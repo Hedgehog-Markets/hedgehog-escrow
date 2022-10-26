@@ -4,17 +4,20 @@ name: switchboard-oracle
 
 services:
   switchboard:
-    image: "switchboardlabs/node:dev-v2-10-10-22"
+    build: .
     network_mode: host
     restart: always
     secrets:
       - PAYER_SECRETS
     environment:
-      - LIVE=1
-      - CLUSTER=devnet
+      - CHAIN=solana
+      - LIVE=0
+      - CLUSTER=localnet
       - RPC_URL=${RPC_URL}
       - ORACLE_KEY=${ORACLE_KEY}
-      - HEARTBEAT_INTERVAL=15
+      - HEARTBEAT_INTERVAL=1
+      - TASK_RUNNER_SOLANA_RPC=${RPC_URL}
+      - VERBOSE=1
 
 secrets:
   PAYER_SECRETS:

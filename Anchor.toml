@@ -7,7 +7,7 @@ wallet = "test_wallet.json"
 [programs.localnet]
 hh_escrow = "Yb4spZYFpgad4pDvV1mdU7pFU9vQWNeDS4degy7eR1u"
 hyperspace_resolver = "CyX3buQXyW939M5LReVhPGwcTDoPWMAdArehA2aqVRvP"
-switchboard_resolver = "Be7cUjJjBaF1tarJo4aXCYPnMr1xUAvyApaCQovt9kN"
+switchboard_resolver = "8kjTCbyh98kFMDsCkCMUwDj3TNJh4f5fREquiVLUCX2P"
 
 [test.validator]
 url = "devnet"

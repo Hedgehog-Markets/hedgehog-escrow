@@ -35,13 +35,14 @@ import {
 } from "@/utils";
 
 import type { SwitchboardProgram, SwitchboardV2 } from "./types";
-import type { Idl, IdlAccounts } from "@project-serum/anchor";
+import type { Idl, IdlAccounts, IdlTypes } from "@project-serum/anchor";
 import type { PublicKey, Signer, Transaction, TransactionInstruction } from "@solana/web3.js";
 import type { IOracleJob } from "@switchboard-xyz/common";
 
 export type { SwitchboardProgram, SwitchboardV2 } from "./types";
 
 type SwitchboardAccounts = IdlAccounts<SwitchboardV2>;
+type SwitchboardTypes = IdlTypes<SwitchboardV2>;
 
 export type OracleQueueAccountData = SwitchboardAccounts extends never
   ? Awaited<ReturnType<typeof OracleQueueAccount.prototype.loadData>>
@@ -51,6 +52,11 @@ export type OracleQueueAccountData = SwitchboardAccounts extends never
 export type OracleAccountData = SwitchboardAccounts extends never
   ? Awaited<ReturnType<typeof OracleAccount.prototype.loadData>>
   : Omit<SwitchboardAccounts["OracleAccountData"], "ebuf">;
+export type AggregatorAccountData = SwitchboardAccounts extends never
+  ? Awaited<ReturnType<typeof AggregatorAccount.prototype.loadData>>
+  : Omit<SwitchboardAccounts["AggregatorAccountData"], "ebuf"> & {
+      latestConfirmedRound: SwitchboardTypes["AggregatorRound"];
+    };
 
 type IdlTypeDef = NonNullable<Idl["types"]>[number];
 

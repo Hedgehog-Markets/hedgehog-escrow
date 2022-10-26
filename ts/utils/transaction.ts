@@ -35,6 +35,8 @@ export function addErrors(programId: PublicKey, idlErrors: Array<IdlErrorCode>):
 export const mapTxErr = <T>(promise: Promise<T>): Promise<T> =>
   promise.catch((err) => {
     if (err instanceof Web3SendTransactionError && err.logs) {
+      // console.error(err.logs); // TODO: Remove this debug log.
+
       const e = translateError(err.message, err.logs);
       e.cause = err;
       if (e.stack && err.stack) {
@@ -59,16 +61,6 @@ addErrors(atoken.programId, atoken.idl.errors);
       addErrors(program.programId, program.idl.errors);
     }
   }
-}
-
-// Install a wrapper around the anchor provider `sendAndConfirm` to give better errors.
-{
-  const provider = getProvider();
-  const oldFn = provider.sendAndConfirm ?? sendTx;
-
-  provider.sendAndConfirm = function (...args) {
-    return mapTxErr(oldFn.call(this, ...args));
-  };
 }
 
 export function packInstructions(

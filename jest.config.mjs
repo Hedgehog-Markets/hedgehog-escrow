@@ -75,6 +75,7 @@ export default {
   maxWorkers: 1,
 
   roots: ["<rootDir>/ts/"],
+  setupFiles: ["dotenv/config"],
   setupFilesAfterEnv: ["<rootDir>/ts/setup/matchers.ts", "<rootDir>/ts/setup/provider.ts"],
   testMatch: ["**/__tests__/**/*.spec.ts"],
 
@@ -93,6 +94,6 @@ export default {
     prefix: path.resolve(__dirname, compilerOptions.baseUrl),
   }),
 
-  testTimeout: 10_000,
+  testTimeout: 15_000,
   slowTestThreshold: 5_000,
 };

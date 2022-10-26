@@ -14,8 +14,7 @@ use crate::instructions::*;
 
 pub use crate::error::ErrorCode;
 
-// TODO: Update to real address later.
-declare_id!("Be7cUjJjBaF1tarJo4aXCYPnMr1xUAvyApaCQovt9kN");
+declare_id!("8kjTCbyh98kFMDsCkCMUwDj3TNJh4f5fREquiVLUCX2P");
 
 #[program]
 pub mod switchboard_resolver {
