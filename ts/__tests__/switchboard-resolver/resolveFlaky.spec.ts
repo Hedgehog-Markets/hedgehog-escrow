@@ -353,7 +353,6 @@ describeFlaky("initialize switchboard resolver", () => {
         market: market.publicKey,
         feed: aggregator.publicKey,
         escrowProgram: escrowProgram.programId,
-        systemProgram: SystemProgram.programId,
       })
       .rpc();
 

@@ -35,7 +35,7 @@ import {
 } from "@/utils";
 
 import type { SwitchboardProgram, SwitchboardV2 } from "./types";
-import type { Idl, IdlAccounts, IdlTypes } from "@project-serum/anchor";
+import type { IdlAccounts, IdlTypes } from "@project-serum/anchor";
 import type { PublicKey, Signer, Transaction, TransactionInstruction } from "@solana/web3.js";
 import type { IOracleJob } from "@switchboard-xyz/common";
 
@@ -58,39 +58,11 @@ export type AggregatorAccountData = SwitchboardAccounts extends never
       latestConfirmedRound: SwitchboardTypes["AggregatorRound"];
     };
 
-type IdlTypeDef = NonNullable<Idl["types"]>[number];
-
 export const loadSwitchboardProgram = (async () => {
   const provider = getProvider();
   const idl =
     (await Program.fetchIdl<SwitchboardV2>(SBV2_DEVNET_PID, provider)) ??
     __throw(new Error("Failed to fetch Switchboard IDL"));
-
-  // Attempt to remove bugged `Error` type.
-  if (idl.types) {
-    let bugged = false;
-
-    const errorIdx = idl.types.findIndex((t) => t.name === ("Error" as never));
-    if (errorIdx !== -1) {
-      const { type } = idl.types[errorIdx] as IdlTypeDef;
-      // We found the `Error` type, check if it is bugged.
-      if (
-        type.kind === "enum" &&
-        type.variants.some(
-          (v) => v.fields?.some((f) => typeof f !== "object" || !("name" in f)) ?? false,
-        )
-      ) {
-        // Remove bugged type.
-        idl.types.splice(errorIdx, 1);
-        bugged = true;
-      }
-    }
-
-    // If the bugged `Error` type can't be found, print a warning.
-    if (!bugged) {
-      console.warn("Bugged Switchboard IDL `Error` type doesn't exist");
-    }
-  }
 
   const json = JSON.stringify(idl, null, 2);
   const types = `export type SwitchboardV2 = ${json};\n\nexport const IDL: SwitchboardV2 = ${json};\n`;

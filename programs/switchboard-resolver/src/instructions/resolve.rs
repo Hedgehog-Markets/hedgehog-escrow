@@ -24,8 +24,6 @@ pub struct Resolve<'info> {
 
     /// The escrow program.
     pub escrow_program: Program<'info, HhEscrow>,
-    /// The Solana system program.
-    pub system_program: Program<'info, System>,
 }
 
 impl<'info> Resolve<'info> {
