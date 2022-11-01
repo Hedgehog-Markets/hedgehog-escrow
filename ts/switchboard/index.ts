@@ -6,7 +6,6 @@ import { Keypair, SystemProgram } from "@solana/web3.js";
 import { OracleJob } from "@switchboard-xyz/common";
 import {
   AggregatorAccount,
-  CrankAccount,
   JobAccount,
   LeaseAccount,
   OracleAccount,
@@ -91,7 +90,6 @@ interface CreateQueueParams {
   minStake?: BN;
 
   queueKeypair?: Keypair;
-  crankKeypair?: Keypair;
   tokenWallet?: Keypair;
 }
 
@@ -100,12 +98,14 @@ export async function createQueue(
   params: CreateQueueParams = {},
 ): Promise<{
   queue: OracleQueueAccount & { keypair: Keypair };
-  crank: CrankAccount & { keypair: Keypair };
   oracle: OracleAccount;
 }> {
   const provider = switchboard.provider;
   const connection = provider.connection;
   const authority = provider.wallet.publicKey;
+
+  const ixs: Array<TransactionInstruction> = [];
+  const signers: Array<Signer> = [];
 
   const [state, stateBump] = ProgramStateAccount.fromSeed(switchboard);
   const { tokenMint: mint } = await switchboard.account.sbState.fetch(state.publicKey);
@@ -119,78 +119,54 @@ export async function createQueue(
     keypair: queueKeypair,
   }) as OracleQueueAccount & { keypair: Keypair };
 
-  const crankKeypair = params?.crankKeypair ?? Keypair.generate();
-  const crankBuffer = Keypair.generate();
-  const crankSize = 8 + (params.crankSize ?? 500) * 40;
-
-  const crank = new CrankAccount({
-    program: switchboard,
-    keypair: crankKeypair,
-  }) as CrankAccount & { keypair: Keypair };
-
-  {
-    const preIxs = [
-      SystemProgram.createAccount({
-        fromPubkey: authority,
-        newAccountPubkey: queueBuffer.publicKey,
-        space: queueSize,
-        lamports: await connection.getMinimumBalanceForRentExemption(queueSize),
-        programId: switchboard.programId,
-      }),
-      await switchboard.methods
-        .oracleQueueInit({
-          name: [],
-          metadata: [],
-          reward: params.reward ?? new BN(0),
-          minStake: params.minStake ?? new BN(0),
-          feedProbationPeriod: 0,
-          oracleTimeout: 180,
-          slashingEnabled: false,
-          varianceToleranceMultiplier: new SwitchboardDecimal(new BN(2), 0),
-          consecutiveFeedFailureLimit: new BN(1000),
-          consecutiveOracleFailureLimit: new BN(1000),
-          queueSize,
-          unpermissionedFeeds: false,
-          unpermissionedVrf: false,
-          enableBufferRelayers: false,
-        })
-        .accounts({
-          oracleQueue: queueKeypair.publicKey,
-          authority,
-          buffer: queueBuffer.publicKey,
-          mint,
-          payer: authority,
-          systemProgram: SystemProgram.programId,
-        })
-        .instruction(),
-      SystemProgram.createAccount({
-        fromPubkey: authority,
-        newAccountPubkey: crankBuffer.publicKey,
-        space: crankSize,
-        lamports: await connection.getMinimumBalanceForRentExemption(crankSize),
-        programId: switchboard.programId,
-      }),
-    ];
-
+  ixs.push(
+    SystemProgram.createAccount({
+      fromPubkey: authority,
+      newAccountPubkey: queueBuffer.publicKey,
+      space: queueSize,
+      lamports: await connection.getMinimumBalanceForRentExemption(queueSize),
+      programId: switchboard.programId,
+    }),
     await switchboard.methods
-      .crankInit({
-        name: Buffer.from("Crank"),
-        metadata: Buffer.from(""),
-        crankSize,
+      .oracleQueueInit({
+        name: [],
+        metadata: [],
+        reward: params.reward ?? new BN(0),
+        minStake: params.minStake ?? new BN(0),
+        feedProbationPeriod: 0,
+        oracleTimeout: 180,
+        slashingEnabled: false,
+        varianceToleranceMultiplier: new SwitchboardDecimal(new BN(2), 0),
+        consecutiveFeedFailureLimit: new BN(1000),
+        consecutiveOracleFailureLimit: new BN(1000),
+        queueSize,
+        unpermissionedFeeds: false,
+        unpermissionedVrf: false,
+        enableBufferRelayers: false,
       })
       .accounts({
-        crank: crankKeypair.publicKey,
-        queue: queueKeypair.publicKey,
-        buffer: crankBuffer.publicKey,
+        oracleQueue: queueKeypair.publicKey,
+        authority,
+        buffer: queueBuffer.publicKey,
+        mint,
         payer: authority,
         systemProgram: SystemProgram.programId,
       })
-      .preInstructions(preIxs)
-      .signers([queueKeypair, queueBuffer, crankKeypair, crankBuffer])
-      .rpc();
-  }
+      .instruction(),
+  );
+  signers.push(queueKeypair, queueBuffer);
 
   const tokenWallet = params.tokenWallet ?? Keypair.generate();
+
+  ixs.push(
+    ...(await createInitAccountInstructions({
+      account: tokenWallet,
+      mint,
+      user: state.publicKey,
+    })),
+  );
+  signers.push(tokenWallet);
+
   const [oracle, oracleBump] = OracleAccount.fromSeed(switchboard, queue, tokenWallet.publicKey);
 
   const [permission] = PermissionAccount.fromSeed(
@@ -200,43 +176,35 @@ export async function createQueue(
     oracle.publicKey,
   );
 
-  {
-    const preIxs = [
-      ...(await createInitAccountInstructions({
-        account: tokenWallet,
-        mint,
-        user: state.publicKey,
-      })),
-      await switchboard.methods
-        .oracleInit({
-          name: Buffer.from("Oracle"),
-          metadata: Buffer.from(""),
-          stateBump,
-          oracleBump,
-        })
-        .accounts({
-          oracle: oracle.publicKey,
-          oracleAuthority: authority,
-          queue: queueKeypair.publicKey,
-          wallet: tokenWallet.publicKey,
-          programState: state.publicKey,
-          payer: authority,
-          systemProgram: SystemProgram.programId,
-        })
-        .instruction(),
-      await switchboard.methods
-        .permissionInit({})
-        .accounts({
-          permission: permission.publicKey,
-          authority,
-          granter: queue.publicKey,
-          grantee: oracle.publicKey,
-          payer: authority,
-          systemProgram: SystemProgram.programId,
-        })
-        .instruction(),
-    ];
-
+  ixs.push(
+    await switchboard.methods
+      .oracleInit({
+        name: Buffer.from("Oracle"),
+        metadata: Buffer.from(""),
+        stateBump,
+        oracleBump,
+      })
+      .accounts({
+        oracle: oracle.publicKey,
+        oracleAuthority: authority,
+        queue: queueKeypair.publicKey,
+        wallet: tokenWallet.publicKey,
+        programState: state.publicKey,
+        payer: authority,
+        systemProgram: SystemProgram.programId,
+      })
+      .instruction(),
+    await switchboard.methods
+      .permissionInit({})
+      .accounts({
+        permission: permission.publicKey,
+        authority,
+        granter: queue.publicKey,
+        grantee: oracle.publicKey,
+        payer: authority,
+        systemProgram: SystemProgram.programId,
+      })
+      .instruction(),
     await switchboard.methods
       .permissionSet({
         permission: { [SwitchboardPermission.PERMIT_ORACLE_HEARTBEAT]: {} },
@@ -246,12 +214,24 @@ export async function createQueue(
         permission: permission.publicKey,
         authority,
       })
-      .preInstructions(preIxs)
-      .signers([tokenWallet])
-      .rpc();
+      .instruction(),
+  );
+
+  const { blockhash } = await connection.getLatestBlockhash();
+
+  let txs: Array<Transaction>;
+  txs = packInstructions(ixs, authority, blockhash);
+  txs = signTransactions(txs, signers);
+  txs = await provider.wallet.signAllTransactions(txs);
+
+  for (const tx of txs) {
+    await sendAndConfirmTransaction(connection, tx, {
+      skipPreflight: false,
+      maxRetries: 10,
+    });
   }
 
-  return { queue, crank, oracle };
+  return { queue, oracle };
 }
 
 interface CreateAggregatorParams {

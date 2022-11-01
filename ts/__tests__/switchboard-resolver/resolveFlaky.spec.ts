@@ -34,7 +34,6 @@ import type {
 import type { PublicKey, Signer, TransactionInstruction } from "@solana/web3.js";
 import type {
   AggregatorAccount,
-  CrankAccount,
   OracleAccount,
   OracleQueueAccount,
 } from "@switchboard-xyz/switchboard-v2";
@@ -54,7 +53,6 @@ describeFlaky("initialize switchboard resolver", () => {
   let switchboard: SwitchboardProgram;
 
   let queue: OracleQueueAccount,
-    crank: CrankAccount,
     oracle: OracleAccount,
     aggregator: AggregatorAccount,
     funderAccount: Keypair,
@@ -63,35 +61,6 @@ describeFlaky("initialize switchboard resolver", () => {
     resolver: PublicKey;
 
   //////////////////////////////////////////////////////////////////////////////
-
-  const turnCrank = async (attempts: number = 1) => {
-    for (; attempts > 0; ) {
-      try {
-        const readyPubkeys = await crank.peakNextReady(5);
-        if (readyPubkeys.length > 0) {
-          const crankData = await crank.loadData();
-          const queueData: OracleQueueAccountData = await queue.loadData();
-
-          return await crank.pop({
-            payoutWallet: funderAccount.publicKey,
-            queuePubkey: queue.publicKey,
-            queueAuthority: queueData.authority,
-            readyPubkeys,
-            crank: crankData,
-            queue: queueData,
-            tokenMint: queueData.mint,
-          });
-        }
-      } catch (err) {
-        // noop
-      }
-      if (--attempts <= 0) {
-        break;
-      }
-      await sleep(1000);
-    }
-    return undefined;
-  };
 
   const initResolver = async (aggregatorResult: number | bigint) => {
     const job = await createJob(switchboard, {
@@ -114,8 +83,6 @@ describeFlaky("initialize switchboard resolver", () => {
       [[job, 1]],
     ));
 
-    await crank.push({ aggregatorAccount: aggregator });
-
     const preIxs: Array<TransactionInstruction> = [];
     const signers: Array<Signer> = [];
 
@@ -136,14 +103,13 @@ describeFlaky("initialize switchboard resolver", () => {
         })),
       );
 
-      const closeTs = unixTimestamp() + 2n;
-      const expiryTs = closeTs + 2n;
+      const closeTs = intoU64BN(unixTimestamp() + 1n);
 
       preIxs.push(
         await escrowProgram.methods
           .initializeMarket({
-            closeTs: intoU64BN(closeTs),
-            expiryTs: intoU64BN(expiryTs),
+            closeTs,
+            expiryTs: closeTs,
             resolutionDelay: 3600,
             yesAmount: YES_AMOUNT,
             noAmount: NO_AMOUNT,
@@ -233,7 +199,7 @@ describeFlaky("initialize switchboard resolver", () => {
   beforeAll(async () => {
     switchboard = await loadSwitchboardProgram;
 
-    ({ queue, crank, oracle } = await createQueue(switchboard));
+    ({ queue, oracle } = await createQueue(switchboard));
 
     // Hearbeat oracle.
     {
@@ -344,7 +310,7 @@ describeFlaky("initialize switchboard resolver", () => {
       });
     });
 
-    await Promise.all([Promise.any([hasResult, turnCrank(5)]), sleep(4000)]);
+    await Promise.all([hasResult, sleep(1000)]);
 
     await program.methods
       .resolve()
