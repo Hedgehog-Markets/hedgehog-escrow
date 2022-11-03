@@ -173,7 +173,7 @@ describeFlaky("initialize switchboard resolver", () => {
         minUpdateDelaySeconds: 5,
         startAfter: closeTs,
       },
-      [[job, 1]],
+      [[job, 0]],
     ));
 
     await program.methods
