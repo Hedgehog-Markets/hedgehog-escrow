@@ -281,17 +281,6 @@ export async function createAggregator(
   const ixs: Array<TransactionInstruction> = [];
   const signers: Array<Signer> = [aggregatorKeypair];
 
-  const funderAccount = Keypair.generate();
-  ixs.push(
-    ...(await createInitAccountInstructions({
-      account: funderAccount,
-      mint,
-      user: authority,
-      payer: authority,
-    })),
-  );
-  signers.push(funderAccount);
-
   ixs.push(
     SystemProgram.createAccount({
       fromPubkey: authority,
@@ -350,6 +339,17 @@ export async function createAggregator(
     );
   }
 
+  const funderAccount = Keypair.generate();
+  ixs.push(
+    ...(await createInitAccountInstructions({
+      account: funderAccount,
+      mint,
+      user: authority,
+      payer: authority,
+    })),
+  );
+  signers.push(funderAccount);
+
   ixs.push(
     createAssociatedTokenAccountInstruction({
       account: leaseEscrow,
@@ -391,6 +391,16 @@ export async function createAggregator(
           .instruction(),
       ),
     )),
+  );
+
+  ixs.push(
+    await switchboard.methods
+      .aggregatorLock({})
+      .accounts({
+        aggregator: aggregator.publicKey,
+        authority,
+      })
+      .instruction(),
   );
 
   const { blockhash } = await connection.getLatestBlockhash();
