@@ -1,7 +1,6 @@
 import { spawn, spawnSync } from "child_process";
 
 import { Keypair, SystemProgram } from "@solana/web3.js";
-import { PermissionAccount } from "@switchboard-xyz/switchboard-v2";
 
 import {
   program as escrowProgram,
@@ -16,6 +15,7 @@ import {
   PROJECT_DIR,
   SKIP_FLAKY,
   __throw,
+  chain,
   createInitAccountInstructions,
   createInitMintInstructions,
   intoU64BN,
@@ -25,12 +25,7 @@ import {
 } from "@/utils";
 
 import type { Outcome } from "@/hh-escrow";
-import type {
-  AggregatorAccountData,
-  OracleAccountData,
-  OracleQueueAccountData,
-  SwitchboardProgram,
-} from "@/switchboard";
+import type { AggregatorAccountData, SwitchboardProgram } from "@/switchboard";
 import type { PublicKey, Signer, TransactionInstruction } from "@solana/web3.js";
 import type {
   AggregatorAccount,
@@ -63,31 +58,13 @@ describeFlaky("initialize switchboard resolver", () => {
   //////////////////////////////////////////////////////////////////////////////
 
   const initResolver = async (aggregatorResult: number | bigint) => {
-    const job = await createJob(switchboard, {
-      tasks: [
-        {
-          valueTask: { big: String(aggregatorResult) },
-        },
-      ],
-    });
+    const closeTs = intoU64BN(unixTimestamp() + 1n);
 
-    ({ aggregator, funderAccount } = await createAggregator(
-      switchboard,
-      queue,
-      {
-        batchSize: 1,
-        minRequiredOracleResults: 1,
-        minRequiredJobResults: 1,
-        minUpdateDelaySeconds: 5,
-      },
-      [[job, 1]],
-    ));
-
-    const preIxs: Array<TransactionInstruction> = [];
-    const signers: Array<Signer> = [];
-
-    // Create market.
+    // Create market and initialize user position.
     {
+      const preIxs: Array<TransactionInstruction> = [];
+      const signers: Array<Signer> = [];
+
       market = Keypair.generate();
       mint = Keypair.generate();
       resolver = getResolverAddress(market);
@@ -102,8 +79,6 @@ describeFlaky("initialize switchboard resolver", () => {
           mintAuthority: authority,
         })),
       );
-
-      const closeTs = intoU64BN(unixTimestamp() + 1n);
 
       preIxs.push(
         await escrowProgram.methods
@@ -157,25 +132,49 @@ describeFlaky("initialize switchboard resolver", () => {
             to: userTokenAccount.publicKey,
           })
           .instruction(),
-        await escrowProgram.methods
-          .deposit({
-            yesAmount: YES_AMOUNT,
-            noAmount: NO_AMOUNT,
-            allowPartial: true,
-          })
-          .accounts({
-            market: market.publicKey,
-            user: authority,
-            userPosition,
-            userTokenAccount: userTokenAccount.publicKey,
-            yesTokenAccount,
-            noTokenAccount,
-            tokenProgram: spl.programId,
-          })
-          .instruction(),
       );
       signers.push(userTokenAccount);
+
+      await escrowProgram.methods
+        .deposit({
+          yesAmount: YES_AMOUNT,
+          noAmount: NO_AMOUNT,
+          allowPartial: true,
+        })
+        .accounts({
+          market: market.publicKey,
+          user: authority,
+          userPosition,
+          userTokenAccount: userTokenAccount.publicKey,
+          yesTokenAccount,
+          noTokenAccount,
+          tokenProgram: spl.programId,
+        })
+        .preInstructions(preIxs)
+        .signers(signers)
+        .rpc();
     }
+
+    const job = await createJob(switchboard, {
+      tasks: [
+        {
+          valueTask: { big: String(aggregatorResult) },
+        },
+      ],
+    });
+
+    ({ aggregator, funderAccount } = await createAggregator(
+      switchboard,
+      queue,
+      {
+        batchSize: 1,
+        minRequiredOracleResults: 1,
+        minRequiredJobResults: 1,
+        minUpdateDelaySeconds: 5,
+        startAfter: closeTs,
+      },
+      [[job, 1]],
+    ));
 
     await program.methods
       .initialize()
@@ -187,8 +186,6 @@ describeFlaky("initialize switchboard resolver", () => {
         escrowProgram: escrowProgram.programId,
         systemProgram: SystemProgram.programId,
       })
-      .preInstructions(preIxs)
-      .signers(signers)
       .rpc();
   };
 
@@ -200,35 +197,6 @@ describeFlaky("initialize switchboard resolver", () => {
     switchboard = await loadSwitchboardProgram;
 
     ({ queue, oracle } = await createQueue(switchboard));
-
-    // Hearbeat oracle.
-    {
-      const { tokenAccount }: OracleAccountData = await oracle.loadData();
-      const queueData: OracleQueueAccountData = await queue.loadData();
-
-      const gcOracle =
-        queueData.size !== 0 ? (queueData.queue[queueData.gcIdx] as PublicKey) : oracle.publicKey;
-
-      const [permission, permissionBump] = PermissionAccount.fromSeed(
-        switchboard,
-        queueData.authority,
-        queue.publicKey,
-        oracle.publicKey,
-      );
-
-      await switchboard.methods
-        .oracleHeartbeat({ permissionBump })
-        .accounts({
-          oracle: oracle.publicKey,
-          oracleAuthority: authority,
-          tokenAccount,
-          gcOracle,
-          oracleQueue: queue.publicKey,
-          permission: permission.publicKey,
-          dataBuffer: queueData.dataBuffer,
-        })
-        .rpc();
-    }
 
     spawnSync(DOCKER_COMPOSE, ["up", "-d"], {
       cwd: PROJECT_DIR,
@@ -291,16 +259,24 @@ describeFlaky("initialize switchboard resolver", () => {
 
     await initResolver(value);
 
+    // Wait until the market has reached the expiry.
+    {
+      const { expiryTs } = await escrowProgram.account.market.fetch(market.publicKey);
+      await chain.sleepUntil(expiryTs.toNumber());
+    }
+
+    // Request the queue to update the aggregator.
     await aggregator.openRound({
       oracleQueueAccount: queue,
       payoutWallet: funderAccount.publicKey,
     });
 
-    const hasResult = new Promise<void>((resolve) => {
+    // Wait until the aggregator has a result.
+    await new Promise<void>((resolve) => {
       let listener: number | undefined;
 
       listener = aggregator.onChange((data: AggregatorAccountData) => {
-        if (data.latestConfirmedRound.numSuccess > 0) {
+        if (data.latestConfirmedRound.numSuccess >= data.minOracleResults) {
           if (listener !== undefined) {
             void program.provider.connection.removeAccountChangeListener(listener);
             listener = undefined;
@@ -310,8 +286,7 @@ describeFlaky("initialize switchboard resolver", () => {
       });
     });
 
-    await Promise.all([hasResult, sleep(1000)]);
-
+    // Resolve the market based on the aggregator feed.
     await program.methods
       .resolve()
       .accounts({

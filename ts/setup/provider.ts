@@ -1,25 +1,25 @@
-import path from "path";
-import process from "process";
+/* eslint-disable import/no-duplicates */
+
+import "./env";
 
 import { AnchorProvider, Wallet, setProvider } from "@project-serum/anchor";
 import { Connection, Keypair } from "@solana/web3.js";
 import fs from "graceful-fs";
 
-import { PROJECT_DIR, mapTxErr } from "@/utils";
+import { mapTxErr } from "@/utils/transaction";
+
+import { RPC_URL, WALLET_FILE } from "./env";
 
 import type { ConfirmOptions } from "@solana/web3.js";
-
-const url = process.env.ANCHOR_PROVIDER_URL ?? "http://127.0.0.1:8899";
-const walletFile = process.env.ANCHOR_WALLET ?? path.resolve(PROJECT_DIR, "test_wallet.json");
 
 const options: ConfirmOptions = {
   ...AnchorProvider.defaultOptions(),
   maxRetries: 10,
 };
 
-const connection = new Connection(url, options.commitment);
+const connection = new Connection(RPC_URL, options.commitment);
 const wallet = new Wallet(
-  Keypair.fromSecretKey(new Uint8Array(JSON.parse(fs.readFileSync(walletFile, "utf-8")))),
+  Keypair.fromSecretKey(new Uint8Array(JSON.parse(fs.readFileSync(WALLET_FILE, "utf-8")))),
 );
 
 const provider = new AnchorProvider(connection, wallet, options);

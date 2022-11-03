@@ -90,7 +90,7 @@ interface CreateQueueParams {
   minStake?: BN;
 
   queueKeypair?: Keypair;
-  tokenWallet?: Keypair;
+  oracleWallet?: Keypair;
 }
 
 export async function createQueue(
@@ -156,18 +156,18 @@ export async function createQueue(
   );
   signers.push(queueKeypair, queueBuffer);
 
-  const tokenWallet = params.tokenWallet ?? Keypair.generate();
+  const oracleWallet = params.oracleWallet ?? Keypair.generate();
 
   ixs.push(
     ...(await createInitAccountInstructions({
-      account: tokenWallet,
+      account: oracleWallet,
       mint,
       user: state.publicKey,
     })),
   );
-  signers.push(tokenWallet);
+  signers.push(oracleWallet);
 
-  const [oracle, oracleBump] = OracleAccount.fromSeed(switchboard, queue, tokenWallet.publicKey);
+  const [oracle, oracleBump] = OracleAccount.fromSeed(switchboard, queue, oracleWallet.publicKey);
 
   const [permission] = PermissionAccount.fromSeed(
     switchboard,
@@ -188,7 +188,7 @@ export async function createQueue(
         oracle: oracle.publicKey,
         oracleAuthority: authority,
         queue: queueKeypair.publicKey,
-        wallet: tokenWallet.publicKey,
+        wallet: oracleWallet.publicKey,
         programState: state.publicKey,
         payer: authority,
         systemProgram: SystemProgram.programId,
@@ -239,6 +239,9 @@ interface CreateAggregatorParams {
   minRequiredOracleResults: number;
   minRequiredJobResults: number;
   minUpdateDelaySeconds: number;
+  startAfter?: BN;
+
+  keypair?: Keypair;
 }
 
 export async function createAggregator(
@@ -258,7 +261,7 @@ export async function createAggregator(
 
   const { authority: queueAuthority, mint }: OracleQueueAccountData = await queue.loadData();
 
-  const aggregatorKeypair = Keypair.generate();
+  const aggregatorKeypair = params.keypair ?? Keypair.generate();
   const aggregator = new AggregatorAccount({
     program: switchboard,
     keypair: aggregatorKeypair,
@@ -305,11 +308,11 @@ export async function createAggregator(
         minOracleResults: params.minRequiredOracleResults,
         minJobResults: params.minRequiredJobResults,
         minUpdateDelaySeconds: params.minUpdateDelaySeconds,
-        startAfter: new BN(0),
+        startAfter: params.startAfter ?? new BN(0),
         varianceThreshold: new SwitchboardDecimal(new BN(0), 0),
         forceReportPeriod: new BN(0),
         expiration: new BN(0),
-        disableCrank: false,
+        disableCrank: true,
         stateBump,
       })
       .accounts({

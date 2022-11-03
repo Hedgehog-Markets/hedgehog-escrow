@@ -36,33 +36,37 @@ export function addErrors(programId: PublicKey, idlErrors: ReadonlyArray<IdlErro
 
 export const mapTxErr = <T>(promise: Promise<T>): Promise<T> =>
   promise.catch((err) => {
-    if (err instanceof Web3SendTransactionError && err.logs) {
+    if (err instanceof Error) {
       let e: Error | undefined;
 
-      if (err.logs.length > 0) {
-        try {
-          e = translateError(err.message, err.logs);
-        } catch {
-          // noop
+      if (err instanceof Web3SendTransactionError && err.logs) {
+        if (err.logs.length > 0) {
+          try {
+            e = translateError(err.message, err.logs);
+          } catch {
+            // noop
+          }
         }
       }
 
-      if (e === undefined) {
-        const prefix = "failed to send transaction: ";
-        const msg = err.message.startsWith(prefix) ? err.message.slice(prefix.length) : err.message;
-        e = new Error(msg);
+      const prefix = "failed to send transaction: ";
+      if (e === undefined && err.message.startsWith(prefix)) {
+        e = new Error(err.message.slice(prefix.length));
       }
 
-      e.cause = err;
+      if (e !== undefined) {
+        e.cause = err;
 
-      if (e.stack && err.stack) {
-        const lines1 = e.stack.split("\n").slice(0, 1);
-        const lines2 = err.stack.split("\n").slice(1);
-        e.stack = lines1.concat(lines2).join("\n");
+        if (e.stack && err.stack) {
+          const lines1 = e.stack.split("\n").slice(0, 1);
+          const lines2 = err.stack.split("\n").slice(1);
+          e.stack = lines1.concat(lines2).join("\n");
+        }
+
+        throw e;
       }
-
-      throw e;
     }
+
     throw err;
   });
 
