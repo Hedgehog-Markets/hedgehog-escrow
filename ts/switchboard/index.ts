@@ -278,26 +278,6 @@ export async function createAggregator(
   const ixs: Array<TransactionInstruction> = [];
   const signers: Array<Signer> = [aggregatorKeypair];
 
-  // const funderAccount = getAssociatedTokenAddress(mint, authority);
-  // {
-  //   const accountExists = await connection
-  //     .getAccountInfo(funderAccount)
-  //     .then((info) => info !== null)
-  //     .catch(() => false);
-
-  //   // Create the funder account if it doesn't exist.
-  //   if (!accountExists) {
-  //     ixs.push(
-  //       createAssociatedTokenAccountInstruction({
-  //         account: funderAccount,
-  //         owner: authority,
-  //         mint,
-  //         payer: authority,
-  //       }),
-  //     );
-  //   }
-  // }
-
   const funderAccount = Keypair.generate();
   ixs.push(
     ...(await createInitAccountInstructions({

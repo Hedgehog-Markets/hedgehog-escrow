@@ -7,13 +7,15 @@ import { PublicKey } from "@solana/web3.js";
 
 import type { Keypair } from "@solana/web3.js";
 
-export type Address = PublicKey | Keypair;
+export type Address = PublicKey | Keypair | string;
 
 /**
  * Converts an address into a public key.
  */
 export function translateAddress(address: Address): PublicKey {
-  if ("publicKey" in address) {
+  if (typeof address === "string") {
+    return new PublicKey(address);
+  } else if ("publicKey" in address) {
     return address.publicKey;
   }
   return address;
