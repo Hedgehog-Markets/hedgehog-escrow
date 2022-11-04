@@ -1,5 +1,6 @@
 import { inspect } from "util";
 
+import { verify } from "@noble/ed25519";
 import {
   AnchorError,
   AnchorProvider,
@@ -252,7 +253,28 @@ export async function sendAndConfirmTransaction(
   tx: Transaction,
   opts?: ConfirmOptions,
 ): Promise<string> {
-  const rawTx = tx.serialize();
+  let rawTx: Buffer;
+
+  try {
+    rawTx = tx.serialize();
+  } catch (err) {
+    // If the transaction signature verification failed, try to give a more detailed error.
+
+    const signData = tx.serializeMessage();
+
+    await Promise.all(
+      tx.signatures.map(async ({ signature, publicKey }) => {
+        if (signature === null) {
+          throw new Error(`Missing signer: ${publicKey}`);
+        } else if (!(await verify(signature, signData, publicKey.toBuffer()))) {
+          throw new Error(`Signature verification failed: ${publicKey}`);
+        }
+      }),
+    );
+
+    throw err;
+  }
+
   const signature = await mapTxErr(connection.sendRawTransaction(rawTx, opts));
 
   const { recentBlockhash: blockhash, lastValidBlockHeight } = tx;
