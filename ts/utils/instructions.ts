@@ -2,20 +2,22 @@ import { getProvider } from "@project-serum/anchor";
 import {
   ACCOUNT_SIZE,
   MINT_SIZE,
+  TOKEN_2022_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
+  TokenInvalidAccountOwnerError,
   createAssociatedTokenAccountInstruction as _createAssociatedTokenAccountInstruction,
   createInitializeAccountInstruction,
   createInitializeMintInstruction,
-  getMinimumBalanceForRentExemptAccount,
+  getAccountLenForMint,
   getMinimumBalanceForRentExemptMint,
+  unpackMint,
 } from "@solana/spl-token";
 import { SystemProgram } from "@solana/web3.js";
 
 import { translateAddress } from "./accounts";
-import { opt } from "./misc";
 
 import type { Address } from "./accounts";
-import type { TransactionInstruction } from "@solana/web3.js";
+import type { PublicKey, TransactionInstruction } from "@solana/web3.js";
 
 type CreateInitMintParams = {
   mint: Address;
@@ -33,26 +35,28 @@ export async function createInitMintInstructions({
   decimals,
   payer,
 }: CreateInitMintParams): Promise<[TransactionInstruction, TransactionInstruction]> {
-  const provider = getProvider();
-  const connection = provider.connection;
+  const { connection, wallet } = getProvider();
 
-  payer = opt(payer).apply(translateAddress).value ?? provider.wallet.publicKey;
+  payer = payer != null ? translateAddress(payer) : wallet.publicKey;
+
+  mint = translateAddress(mint);
+  mintAuthority = translateAddress(mintAuthority);
 
   const lamports = await getMinimumBalanceForRentExemptMint(connection);
 
   return [
     SystemProgram.createAccount({
       fromPubkey: payer,
-      newAccountPubkey: translateAddress(mint),
+      newAccountPubkey: mint,
       space: MINT_SIZE,
       lamports,
       programId: TOKEN_PROGRAM_ID,
     }),
     createInitializeMintInstruction(
-      translateAddress(mint),
+      mint,
       decimals ?? 0,
-      translateAddress(mintAuthority),
-      opt(freezeAuthority).apply(translateAddress).value ?? null,
+      mintAuthority,
+      freezeAuthority != null ? translateAddress(freezeAuthority) : null,
       TOKEN_PROGRAM_ID,
     ),
   ];
@@ -72,27 +76,43 @@ export async function createInitAccountInstructions({
   user,
   payer,
 }: CreateInitAccountParams): Promise<[TransactionInstruction, TransactionInstruction]> {
-  const provider = getProvider();
-  const connection = provider.connection;
+  const { connection, wallet } = getProvider();
 
-  payer = opt(payer).apply(translateAddress).value ?? provider.wallet.publicKey;
+  payer = payer != null ? translateAddress(payer) : wallet.publicKey;
 
-  const lamports = await getMinimumBalanceForRentExemptAccount(connection);
+  account = translateAddress(account);
+  mint = translateAddress(mint);
+  user = translateAddress(user);
+
+  let programId: PublicKey;
+  let space: number;
+
+  // If the mint already exists, then we should adapt to the correct token program.
+  const mintInfo = await connection.getAccountInfo(mint);
+  if (mintInfo) {
+    programId = mintInfo.owner;
+    if (!(programId.equals(TOKEN_PROGRAM_ID) || programId.equals(TOKEN_2022_PROGRAM_ID))) {
+      throw new TokenInvalidAccountOwnerError(
+        `Account '${mint}' (mint) is owned by '${programId}'`,
+      );
+    }
+
+    const mintState = unpackMint(mint, mintInfo, programId);
+    space = getAccountLenForMint(mintState);
+  } else {
+    programId = TOKEN_PROGRAM_ID;
+    space = ACCOUNT_SIZE;
+  }
 
   return [
     SystemProgram.createAccount({
       fromPubkey: payer,
-      newAccountPubkey: translateAddress(account),
-      space: ACCOUNT_SIZE,
-      lamports,
-      programId: TOKEN_PROGRAM_ID,
+      newAccountPubkey: account,
+      space,
+      lamports: await connection.getMinimumBalanceForRentExemption(space),
+      programId,
     }),
-    createInitializeAccountInstruction(
-      translateAddress(account),
-      translateAddress(mint),
-      translateAddress(user),
-      TOKEN_PROGRAM_ID,
-    ),
+    createInitializeAccountInstruction(account, mint, user, programId),
   ];
 }
 
@@ -110,7 +130,7 @@ export function createAssociatedTokenAccountInstruction({
   mint,
   payer,
 }: CreateAssociatedTokenAccountParams): TransactionInstruction {
-  payer = opt(payer).apply(translateAddress).value ?? getProvider().wallet.publicKey;
+  payer = payer != null ? translateAddress(payer) : getProvider().wallet.publicKey;
 
   return _createAssociatedTokenAccountInstruction(
     payer,
