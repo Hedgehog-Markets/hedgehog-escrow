@@ -1,19 +1,3 @@
-class Optional<T> {
-  constructor(public readonly value?: T) {}
-
-  public apply<U>(f: (value: T) => U): Optional<U> {
-    if (this.value === null || this.value === undefined) {
-      return new Optional<U>();
-    }
-    return new Optional(f(this.value));
-  }
-}
-
-/**
- * Wrap a value to facilitate optional chaining.
- */
-export const opt = <T>(value?: T): Optional<T> => new Optional(value);
-
 /**
  * Sleep for a given number of milliseconds.
  *

@@ -2,7 +2,7 @@ import path from "path";
 
 import { Program, getProvider } from "@project-serum/anchor";
 import { NATIVE_MINT } from "@solana/spl-token";
-import { Keypair, SystemProgram } from "@solana/web3.js";
+import { Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 import { OracleJob } from "@switchboard-xyz/common";
 import {
   AggregatorAccount,
@@ -34,8 +34,9 @@ import {
 } from "@/utils";
 
 import type { SwitchboardProgram, SwitchboardV2 } from "./types";
+import type { ExpandRecursively } from "@/utils";
 import type { IdlAccounts, IdlTypes } from "@project-serum/anchor";
-import type { PublicKey, Signer, Transaction, TransactionInstruction } from "@solana/web3.js";
+import type { Signer, Transaction, TransactionInstruction } from "@solana/web3.js";
 import type { IOracleJob } from "@switchboard-xyz/common";
 
 export type { SwitchboardProgram, SwitchboardV2 } from "./types";
@@ -43,19 +44,29 @@ export type { SwitchboardProgram, SwitchboardV2 } from "./types";
 type SwitchboardAccounts = IdlAccounts<SwitchboardV2>;
 type SwitchboardTypes = IdlTypes<SwitchboardV2>;
 
-export type OracleQueueAccountData = SwitchboardAccounts extends never
-  ? Awaited<ReturnType<typeof OracleQueueAccount.prototype.loadData>>
-  : Omit<SwitchboardAccounts["OracleQueueAccountData"], "ebuf"> & {
-      queue: Array<PublicKey>;
-    };
-export type OracleAccountData = SwitchboardAccounts extends never
-  ? Awaited<ReturnType<typeof OracleAccount.prototype.loadData>>
-  : Omit<SwitchboardAccounts["OracleAccountData"], "ebuf">;
-export type AggregatorAccountData = SwitchboardAccounts extends never
-  ? Awaited<ReturnType<typeof AggregatorAccount.prototype.loadData>>
-  : Omit<SwitchboardAccounts["AggregatorAccountData"], "ebuf"> & {
-      latestConfirmedRound: SwitchboardTypes["AggregatorRound"];
-    };
+type AccountData<
+  Account extends { loadData: () => Promise<unknown> },
+  Name extends keyof SwitchboardAccounts,
+  Extra = Record<never, never>,
+> = SwitchboardAccounts extends never
+  ? Awaited<ReturnType<Account["loadData"]>>
+  : ExpandRecursively<Omit<SwitchboardAccounts[Name], "ebuf"> & Extra>;
+
+export type SbState = AccountData<ProgramStateAccount, "SbState">;
+export type OracleQueueAccountData = AccountData<
+  OracleQueueAccount,
+  "OracleQueueAccountData",
+  { queue: Array<PublicKey> }
+>;
+export type OracleAccountData = AccountData<OracleAccount, "OracleAccountData">;
+export type AggregatorAccountData = AccountData<
+  AggregatorAccount,
+  "AggregatorAccountData",
+  {
+    latestConfirmedRound: SwitchboardTypes["AggregatorRound"];
+  }
+>;
+export type LeaseAccountData = AccountData<LeaseAccount, "LeaseAccountData">;
 
 export const loadSwitchboardProgram = (async () => {
   const provider = getProvider();
@@ -251,7 +262,7 @@ export async function createAggregator(
   jobs: Array<[job: JobAccount, weight: number]> = [],
 ): Promise<{
   aggregator: AggregatorAccount & { keypair: Keypair };
-  funderAccount: Keypair;
+  lease: LeaseAccount;
 }> {
   const provider = switchboard.provider;
   const connection = provider.connection;
@@ -259,7 +270,13 @@ export async function createAggregator(
 
   const [state, stateBump] = ProgramStateAccount.fromSeed(switchboard);
 
-  const { authority: queueAuthority, mint }: OracleQueueAccountData = await queue.loadData();
+  const queueData: OracleQueueAccountData = await queue.loadData();
+  const queueAuthority = queueData.authority;
+
+  let mint = queueData.mint;
+  if (mint.equals(PublicKey.default)) {
+    ({ tokenMint: mint } = await state.loadData());
+  }
 
   const aggregatorKeypair = params.keypair ?? Keypair.generate();
   const aggregator = new AggregatorAccount({
@@ -417,7 +434,7 @@ export async function createAggregator(
     });
   }
 
-  return { aggregator, funderAccount };
+  return { aggregator, lease };
 }
 
 export async function createJob(

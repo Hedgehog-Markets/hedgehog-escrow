@@ -25,10 +25,11 @@ import {
 } from "@/utils";
 
 import type { Outcome } from "@/hh-escrow";
-import type { AggregatorAccountData, SwitchboardProgram } from "@/switchboard";
+import type { AggregatorAccountData, LeaseAccountData, SwitchboardProgram } from "@/switchboard";
 import type { PublicKey, Signer, TransactionInstruction } from "@solana/web3.js";
 import type {
   AggregatorAccount,
+  LeaseAccount,
   OracleAccount,
   OracleQueueAccount,
 } from "@switchboard-xyz/switchboard-v2";
@@ -50,7 +51,7 @@ describeFlaky("initialize switchboard resolver", () => {
   let queue: OracleQueueAccount,
     oracle: OracleAccount,
     aggregator: AggregatorAccount,
-    funderAccount: Keypair,
+    lease: LeaseAccount,
     market: Keypair,
     mint: Keypair,
     resolver: PublicKey;
@@ -163,7 +164,7 @@ describeFlaky("initialize switchboard resolver", () => {
       ],
     });
 
-    ({ aggregator, funderAccount } = await createAggregator(
+    ({ aggregator, lease } = await createAggregator(
       switchboard,
       queue,
       {
@@ -265,10 +266,12 @@ describeFlaky("initialize switchboard resolver", () => {
       await chain.sleepUntil(expiryTs.toNumber());
     }
 
+    const { escrow }: LeaseAccountData = await lease.loadData();
+
     // Request the queue to update the aggregator.
     await aggregator.openRound({
       oracleQueueAccount: queue,
-      payoutWallet: funderAccount.publicKey,
+      payoutWallet: escrow,
     });
 
     // Wait until the aggregator has a result.

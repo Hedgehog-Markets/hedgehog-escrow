@@ -13,5 +13,6 @@ export * from "./misc";
 export * from "./spl";
 export * from "./system";
 export * from "./transaction";
+export * from "./types";
 
 export * as chain from "./chain";
