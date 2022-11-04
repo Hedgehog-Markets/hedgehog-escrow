@@ -17,6 +17,18 @@ address = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" # Token program
 [[test.validator.clone]]
 address = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL" # Associated Token program
 
-[[test.validator.account]]
-address = "EhCHibyjh8nYUrX239Tc1GPv9PfVPeQY23d2JoJdQPSc"
-filename = "accounts/escrow/global2.json"
+# Switchboard devnet accounts
+[[test.validator.clone]]
+address = "2KgowxogBrGqRcgXQEmqFvC3PGtCu66qERNJevYW8Ajh" # authority
+[[test.validator.clone]]
+address = "BYM81n8HvTJuqZU1PmTVcwZ9G8uoji7FKM6EaPkwphPt" # program state
+[[test.validator.clone]]
+address = "FVLfR6C2ckZhbSwBzZY4CX7YBcddUSge5BNeGQv5eKhy" # token vault
+[[test.validator.clone]]
+address = "94ZVbwgxGiHvi2yngEnU8aqTtyyqqYcy5caQCZeSb4FP" # dao mint
+[[test.validator.clone]]
+address = "F8ce7MsckeZAbAGmxjJNetxYXQa9mKr9nnrC3qKubyYy" # permissionless queue
+[[test.validator.clone]]
+address = "7yJ3sSifpmUFB5BcXy6yMDje15xw2CovJjfXfBKsCfT5" # oracle buffer
+[[test.validator.clone]]
+address = "GN9jjCy2THzZxhYqZETmPM3my8vg4R5JyNkgULddUMa5" # crank #1
