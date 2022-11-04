@@ -63,10 +63,12 @@ export type AggregatorAccountData = AccountData<
   AggregatorAccount,
   "AggregatorAccountData",
   {
-    latestConfirmedRound: SwitchboardTypes["AggregatorRound"];
+    currentRound: AggregatorRound;
+    latestConfirmedRound: AggregatorRound;
   }
 >;
 export type LeaseAccountData = AccountData<LeaseAccount, "LeaseAccountData">;
+export type AggregatorRound = SwitchboardTypes["AggregatorRound"];
 
 export const loadSwitchboardProgram = (async () => {
   const provider = getProvider();
@@ -96,7 +98,6 @@ export const loadSwitchboardProgram = (async () => {
 
 interface CreateQueueParams {
   queueSize?: number;
-  crankSize?: number;
   reward?: BN;
   minStake?: BN;
 
@@ -123,7 +124,7 @@ export async function createQueue(
 
   const queueKeypair = params?.queueKeypair ?? Keypair.generate();
   const queueBuffer = Keypair.generate();
-  const queueSize = 8 + (params.crankSize ?? 500) * 32;
+  const queueSize = 8 + (params.queueSize ?? 1_000) * 32;
 
   const queue = new OracleQueueAccount({
     program: switchboard,
@@ -253,6 +254,7 @@ interface CreateAggregatorParams {
   startAfter?: BN;
 
   keypair?: Keypair;
+  authority?: Keypair;
 }
 
 export async function createAggregator(
@@ -264,9 +266,10 @@ export async function createAggregator(
   aggregator: AggregatorAccount & { keypair: Keypair };
   lease: LeaseAccount;
 }> {
-  const provider = switchboard.provider;
-  const connection = provider.connection;
-  const authority = provider.wallet.publicKey;
+  const { connection, wallet } = switchboard.provider;
+
+  const payer = wallet.publicKey;
+  const authority = params.authority?.publicKey ?? payer;
 
   const [state, stateBump] = ProgramStateAccount.fromSeed(switchboard);
 
@@ -298,9 +301,13 @@ export async function createAggregator(
   const ixs: Array<TransactionInstruction> = [];
   const signers: Array<Signer> = [aggregatorKeypair];
 
+  if (params.authority) {
+    signers.push(params.authority);
+  }
+
   ixs.push(
     SystemProgram.createAccount({
-      fromPubkey: authority,
+      fromPubkey: payer,
       newAccountPubkey: aggregatorKeypair.publicKey,
       space: aggregatorSize,
       lamports: await connection.getMinimumBalanceForRentExemption(aggregatorSize),
@@ -335,7 +342,7 @@ export async function createAggregator(
         authority: queueAuthority,
         granter: queue.publicKey,
         grantee: aggregator.publicKey,
-        payer: authority,
+        payer,
         systemProgram: SystemProgram.programId,
       })
       .instruction(),
@@ -362,7 +369,7 @@ export async function createAggregator(
       account: funderAccount,
       mint,
       user: authority,
-      payer: authority,
+      payer,
     })),
   );
   signers.push(funderAccount);
@@ -372,7 +379,7 @@ export async function createAggregator(
       account: leaseEscrow,
       owner: lease.publicKey,
       mint,
-      payer: authority,
+      payer,
     }),
     await switchboard.methods
       .leaseInit({
@@ -387,7 +394,7 @@ export async function createAggregator(
         queue: queue.publicKey,
         aggregator: aggregator.publicKey,
         funder: funderAccount.publicKey,
-        payer: authority,
+        payer,
         systemProgram: SystemProgram.programId,
         tokenProgram: spl.programId,
         owner: authority,
@@ -423,9 +430,9 @@ export async function createAggregator(
   const { blockhash } = await connection.getLatestBlockhash();
 
   let txs: Array<Transaction>;
-  txs = packInstructions(ixs, authority, blockhash);
+  txs = packInstructions(ixs, payer, blockhash);
   txs = signTransactions(txs, signers);
-  txs = await provider.wallet.signAllTransactions(txs);
+  txs = await wallet.signAllTransactions(txs);
 
   for (const tx of txs) {
     await sendAndConfirmTransaction(connection, tx, {
@@ -439,24 +446,31 @@ export async function createAggregator(
 
 export async function createJob(
   switchboard: SwitchboardProgram,
-  job: IOracleJob,
+  job: IOracleJob & { authority?: Keypair },
 ): Promise<JobAccount & { keypair: Keypair }> {
-  const CHUNK_SIZE = 800;
+  const payer = switchboard.provider.wallet.publicKey;
+  const authority = job.authority?.publicKey ?? payer;
 
-  const authority = switchboard.provider.wallet.publicKey;
   const [state, stateBump] = ProgramStateAccount.fromSeed(switchboard);
 
   const jobKeypair = Keypair.generate();
-  const jobData = toBuffer(OracleJob.encodeDelimited(job).finish());
+  const jobData = toBuffer(OracleJob.encodeDelimited({ tasks: job.tasks }).finish());
   const jobAccount = new JobAccount({
     program: switchboard,
     keypair: jobKeypair,
   }) as JobAccount & { keypair: Keypair };
 
+  const signers: Array<Signer> = [jobKeypair];
+
+  if (job.authority) {
+    signers.push(job.authority);
+  }
+
   let data = jobData;
   let size: number | null = null;
   const chunks: Array<Buffer> = [];
 
+  const CHUNK_SIZE = 800;
   if (jobData.byteLength > CHUNK_SIZE) {
     data = Buffer.alloc(0);
     size = jobData.byteLength;
@@ -481,10 +495,10 @@ export async function createJob(
       job: jobKeypair.publicKey,
       authority,
       programState: state.publicKey,
-      payer: authority,
+      payer,
       systemProgram: SystemProgram.programId,
     })
-    .signers([jobKeypair])
+    .signers(signers)
     .rpc();
 
   // If we had to chunk up the data, then send out the chunked transactions.
@@ -498,7 +512,7 @@ export async function createJob(
         job: jobKeypair.publicKey,
         authority,
       })
-      .signers([jobKeypair])
+      .signers(signers)
       .rpc();
   }
 
