@@ -68,7 +68,7 @@ export type AggregatorAccountData = AccountData<
   }
 >;
 export type LeaseAccountData = AccountData<LeaseAccount, "LeaseAccountData">;
-export type AggregatorRound = SwitchboardTypes["AggregatorRound"];
+export type AggregatorRound = ExpandRecursively<SwitchboardTypes["AggregatorRound"]>;
 
 export const loadSwitchboardProgram = (async () => {
   const provider = getProvider();
