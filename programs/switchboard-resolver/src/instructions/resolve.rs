@@ -4,10 +4,10 @@ use common::sys;
 use common::traits::KeyRef;
 use hh_escrow::program::HhEscrow;
 use hh_escrow::state::{Market, Outcome};
+use switchboard_v2::AggregatorAccountData;
 
 use crate::error::ErrorCode;
 use crate::state::{Resolver, RESOLVER_SEED};
-use crate::utils::load_aggregator_account;
 
 #[derive(Accounts)]
 pub struct Resolve<'info> {
@@ -53,7 +53,10 @@ pub fn handler(ctx: Context<Resolve>) -> Result<()> {
         return Err(error!(ErrorCode::TimestampNotPassed));
     }
 
-    let result = load_aggregator_account(feed)?.get_result()?;
+    let result = AggregatorAccountData::new(feed)
+        .map_err(|err| err.with_account_name("feed"))?
+        .get_result()?;
+
     let outcome = if result.scale == 0 {
         let result = result.mantissa;
 

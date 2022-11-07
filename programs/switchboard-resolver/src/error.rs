@@ -1,7 +1,7 @@
 #[anchor_lang::error_code]
 pub enum ErrorCode {
-    #[msg("Missing bump seed")]
-    MissingBumpSeed,
+    #[msg("Bump seed is non-canonical")]
+    NonCanonicalBump,
     #[msg("Resolver does not match the market resolver address")]
     IncorrectResolver,
     #[msg("Creator does not match the market creator address")]
@@ -10,4 +10,8 @@ pub enum ErrorCode {
     IncorrectMarket,
     #[msg("Cannot resolve before timestamp")]
     TimestampNotPassed,
+    #[msg("Aggregator has no jobs")]
+    AggregatorNoJobs,
+    #[msg("Aggregator is not locked")]
+    AggregatorNotLocked,
 }

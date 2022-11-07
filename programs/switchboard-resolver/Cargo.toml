@@ -25,6 +25,6 @@ hh-escrow = { path = "../hh-escrow", features = ["cpi"] }
 anchor-lang = "0.24.2"
 solana-program = "1.9"
 
-switchboard-v2 = { version = "0.1.11", features = ["cpi"] }
+switchboard-v2 = { git = "https://github.com/Hedgehog-Markets/switchboard-v2", branch = "anchor-0.24.2", features = ["cpi"] }
 
 borsh = { version = "0.9.3", features = ["const-generics"] }

@@ -1,6 +1,6 @@
 import { LangErrorCode } from "@project-serum/anchor";
 import { Keypair, SystemProgram } from "@solana/web3.js";
-import { AggregatorAccount } from "@switchboard-xyz/switchboard-v2";
+import { OracleQueueAccount } from "@switchboard-xyz/switchboard-v2";
 import BN from "bn.js";
 
 import {
@@ -9,24 +9,25 @@ import {
   getNoTokenAccountAddress,
   getYesTokenAccountAddress,
 } from "@/hh-escrow";
-import { createQueue, loadSwitchboardProgram } from "@/switchboard";
+import {
+  PERMISSIONLESS_QUEUE,
+  createAggregator,
+  createJob,
+  loadSwitchboardProgram,
+} from "@/switchboard";
 import { ErrorCode, getResolverAddress, program } from "@/switchboard-resolver";
 import { createInitMintInstructions, intoU64BN, spl, unixTimestamp } from "@/utils";
 
 import type { SwitchboardProgram } from "@/switchboard";
 import type { PublicKey } from "@solana/web3.js";
-import type { OracleQueueAccount } from "@switchboard-xyz/switchboard-v2";
+import type { AggregatorAccount } from "@switchboard-xyz/switchboard-v2";
 
 describe("initialize switchboard resolver", () => {
   const authority = program.provider.wallet.publicKey;
 
   let switchboard: SwitchboardProgram;
 
-  let queue: OracleQueueAccount,
-    aggregator: AggregatorAccount,
-    market: Keypair,
-    mint: Keypair,
-    resolver: PublicKey;
+  let aggregator: AggregatorAccount, market: Keypair, mint: Keypair, resolver: PublicKey;
 
   //////////////////////////////////////////////////////////////////////////////
 
@@ -45,18 +46,27 @@ describe("initialize switchboard resolver", () => {
   beforeAll(async () => {
     switchboard = await loadSwitchboardProgram;
 
-    // Create queue, crank, and oracle.
-    ({ queue } = await createQueue(switchboard));
+    const queue = new OracleQueueAccount({
+      program: switchboard,
+      publicKey: PERMISSIONLESS_QUEUE,
+    });
+
+    // Create job.
+    const job = await createJob(switchboard, {
+      tasks: [{ valueTask: { big: "1" } }],
+    });
 
     // Create aggregator.
-    aggregator = await AggregatorAccount.create(switchboard, {
-      authority,
-      batchSize: 1,
-      minRequiredOracleResults: 1,
-      minRequiredJobResults: 1,
-      minUpdateDelaySeconds: 10,
-      queueAccount: queue,
-    });
+    ({ aggregator } = await createAggregator(
+      switchboard,
+      queue,
+      {
+        batchSize: 1,
+        minRequiredOracleResults: 1,
+        minRequiredJobResults: 1,
+      },
+      [[job, 0]],
+    ));
 
     // Create market.
     {

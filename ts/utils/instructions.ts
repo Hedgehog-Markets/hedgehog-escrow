@@ -6,8 +6,8 @@ import {
   TOKEN_PROGRAM_ID,
   TokenInvalidAccountOwnerError,
   createAssociatedTokenAccountInstruction as _createAssociatedTokenAccountInstruction,
-  createInitializeAccountInstruction,
-  createInitializeMintInstruction,
+  createInitializeAccount3Instruction,
+  createInitializeMint2Instruction,
   getAccountLenForMint,
   getMinimumBalanceForRentExemptMint,
   unpackMint,
@@ -52,7 +52,7 @@ export async function createInitMintInstructions({
       lamports,
       programId: TOKEN_PROGRAM_ID,
     }),
-    createInitializeMintInstruction(
+    createInitializeMint2Instruction(
       mint,
       decimals ?? 0,
       mintAuthority,
@@ -112,7 +112,7 @@ export async function createInitAccountInstructions({
       lamports: await connection.getMinimumBalanceForRentExemption(space),
       programId,
     }),
-    createInitializeAccountInstruction(account, mint, user, programId),
+    createInitializeAccount3Instruction(account, mint, user, programId),
   ];
 }
 

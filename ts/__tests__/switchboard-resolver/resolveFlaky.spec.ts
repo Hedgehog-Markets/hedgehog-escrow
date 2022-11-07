@@ -192,8 +192,6 @@ describeFlaky("initialize switchboard resolver", () => {
 
   //////////////////////////////////////////////////////////////////////////////
 
-  let oracleLogs: (ChildProcess & { stdout: Readable; stderr: Readable }) | undefined;
-
   beforeAll(async () => {
     switchboard = await loadSwitchboardProgram;
 
@@ -208,44 +206,32 @@ describeFlaky("initialize switchboard resolver", () => {
       },
     });
 
-    oracleLogs = spawn(DOCKER_COMPOSE, ["logs", "-f"], {
+    const oracleLogs = spawn(DOCKER_COMPOSE, ["logs", "-f"], {
       cwd: PROJECT_DIR,
       stdio: "pipe",
     }) as ChildProcess & { stdout: Readable; stderr: Readable };
 
-    // {
-    //   const { stdout, stderr } = oracleLogs;
-
-    //   stdout.setEncoding("utf-8");
-    //   stderr.setEncoding("utf-8");
-
-    //   stdout.on("data", (chunk: string) => console.log(chunk.trim()));
-    //   stderr.on("data", (chunk: string) => console.error(chunk.trim()));
-    // }
-
-    let oracleReady: Promise<void>;
-    {
+    const oracleReady = new Promise<void>((resolve) => {
       const { stdout } = oracleLogs;
       stdout.setEncoding("utf-8");
 
-      oracleReady = new Promise<void>((resolve) => {
-        stdout.on("data", (chunk: string) => {
-          if (chunk.includes("Using default performance monitoring")) {
-            resolve();
+      const listener = (chunk: string) => {
+        if (chunk.includes("Using default performance monitoring")) {
+          if (!oracleLogs.killed) {
+            oracleLogs.kill();
           }
-        });
-      });
-    }
+          stdout.removeListener("data", listener);
+          resolve();
+        }
+      };
 
-    await Promise.any([oracleReady, sleep(10_000)]);
+      stdout.on("data", listener);
+    });
+
+    await Promise.race([oracleReady, sleep(10_000)]);
   });
 
   afterAll(() => {
-    if (oracleLogs !== undefined) {
-      oracleLogs.kill();
-      oracleLogs = undefined;
-    }
-
     spawnSync(DOCKER_COMPOSE, ["kill", "--all"]);
   });
 
@@ -266,16 +252,8 @@ describeFlaky("initialize switchboard resolver", () => {
       await chain.sleepUntil(expiryTs.toNumber());
     }
 
-    const { escrow }: LeaseAccountData = await lease.loadData();
-
-    // Request the queue to update the aggregator.
-    await aggregator.openRound({
-      oracleQueueAccount: queue,
-      payoutWallet: escrow,
-    });
-
-    // Wait until the aggregator has a result.
-    await new Promise<void>((resolve) => {
+    // Start listening for a result.
+    const pendingResult = new Promise<void>((resolve) => {
       let listener: number | undefined;
 
       listener = aggregator.onChange((data: AggregatorAccountData) => {
@@ -288,6 +266,17 @@ describeFlaky("initialize switchboard resolver", () => {
         }
       });
     });
+
+    const { escrow }: LeaseAccountData = await lease.loadData();
+
+    // Request the queue to update the aggregator.
+    await aggregator.openRound({
+      oracleQueueAccount: queue,
+      payoutWallet: escrow,
+    });
+
+    // Wait until the aggregator has a result.
+    await pendingResult;
 
     // Resolve the market based on the aggregator feed.
     await program.methods

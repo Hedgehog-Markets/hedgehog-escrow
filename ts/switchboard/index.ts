@@ -96,6 +96,11 @@ export const loadSwitchboardProgram = (async () => {
   return switchboard;
 })();
 
+/**
+ * Devnet permissionless queue address.
+ */
+export const PERMISSIONLESS_QUEUE = new PublicKey("F8ce7MsckeZAbAGmxjJNetxYXQa9mKr9nnrC3qKubyYy");
+
 interface CreateQueueParams {
   queueSize?: number;
   reward?: BN;
@@ -122,9 +127,9 @@ export async function createQueue(
   const [state, stateBump] = ProgramStateAccount.fromSeed(switchboard);
   const { tokenMint: mint } = await switchboard.account.sbState.fetch(state.publicKey);
 
-  const queueKeypair = params?.queueKeypair ?? Keypair.generate();
+  const queueKeypair = params.queueKeypair ?? Keypair.generate();
   const queueBuffer = Keypair.generate();
-  const queueSize = 8 + (params.queueSize ?? 1_000) * 32;
+  const queueSize = 8 + (params.queueSize ?? 500) * 32;
 
   const queue = new OracleQueueAccount({
     program: switchboard,
@@ -149,8 +154,8 @@ export async function createQueue(
         oracleTimeout: 180,
         slashingEnabled: false,
         varianceToleranceMultiplier: new SwitchboardDecimal(new BN(2), 0),
-        consecutiveFeedFailureLimit: new BN(1000),
-        consecutiveOracleFailureLimit: new BN(1000),
+        consecutiveFeedFailureLimit: new BN(1_000),
+        consecutiveOracleFailureLimit: new BN(1_000),
         queueSize,
         unpermissionedFeeds: false,
         unpermissionedVrf: false,
@@ -250,7 +255,7 @@ interface CreateAggregatorParams {
   batchSize: number;
   minRequiredOracleResults: number;
   minRequiredJobResults: number;
-  minUpdateDelaySeconds: number;
+  minUpdateDelaySeconds?: number;
   startAfter?: BN;
 
   keypair?: Keypair;
@@ -320,7 +325,7 @@ export async function createAggregator(
         batchSize: params.batchSize,
         minOracleResults: params.minRequiredOracleResults,
         minJobResults: params.minRequiredJobResults,
-        minUpdateDelaySeconds: params.minUpdateDelaySeconds,
+        minUpdateDelaySeconds: params.minUpdateDelaySeconds ?? 15,
         startAfter: params.startAfter ?? new BN(0),
         varianceThreshold: new SwitchboardDecimal(new BN(0), 0),
         forceReportPeriod: new BN(0),
@@ -415,9 +420,6 @@ export async function createAggregator(
           .instruction(),
       ),
     )),
-  );
-
-  ixs.push(
     await switchboard.methods
       .aggregatorLock({})
       .accounts({
@@ -446,15 +448,15 @@ export async function createAggregator(
 
 export async function createJob(
   switchboard: SwitchboardProgram,
-  job: IOracleJob & { authority?: Keypair },
+  job: IOracleJob & { keypair?: Keypair; authority?: Keypair },
 ): Promise<JobAccount & { keypair: Keypair }> {
   const payer = switchboard.provider.wallet.publicKey;
   const authority = job.authority?.publicKey ?? payer;
 
   const [state, stateBump] = ProgramStateAccount.fromSeed(switchboard);
 
-  const jobKeypair = Keypair.generate();
-  const jobData = toBuffer(OracleJob.encodeDelimited({ tasks: job.tasks }).finish());
+  const jobKeypair = job.keypair ?? Keypair.generate();
+  const jobData = toBuffer(OracleJob.encodeDelimited({ tasks: job.tasks ?? null }).finish());
   const jobAccount = new JobAccount({
     program: switchboard,
     keypair: jobKeypair,
