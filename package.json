@@ -7,6 +7,7 @@
     "validator": "ts-node  ./scripts/validator.ts"
   },
   "dependencies": {
+    "@juici/math": "^0.1.0",
     "@noble/ed25519": "^1.7.1",
     "@project-serum/anchor": "0.25.0",
     "@solana/spl-token": "^0.3.6",
@@ -15,7 +16,9 @@
     "@switchboard-xyz/switchboard-v2": "^0.0.145",
     "bigint-utils": "^0.2.1",
     "bn.js": "^5.2.1",
-    "graceful-fs": "^4.2.10"
+    "graceful-fs": "^4.2.10",
+    "lossless-json": "^2.0.1",
+    "superstruct": "^0.16.7"
   },
   "devDependencies": {
     "@solana/buffer-layout": "^4.0.0",

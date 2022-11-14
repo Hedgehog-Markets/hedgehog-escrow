@@ -810,6 +810,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@juici/math@npm:^0.1.0":
+  version: 0.1.0
+  resolution: "@juici/math@npm:0.1.0"
+  checksum: 136014a45f87bb404c35254386d5a197d593dc58c0b554f9a698a7078c02a31379ed237e344afdbe49ff7c5b3d8c717beb30a5094b4740264c293c4041ab259d
+  languageName: node
+  linkType: hard
+
 "@noble/ed25519@npm:^1.7.0, @noble/ed25519@npm:^1.7.1":
   version: 1.7.1
   resolution: "@noble/ed25519@npm:1.7.1"
@@ -917,7 +924,7 @@ __metadata:
 
 "@project-serum/anchor@patch:@project-serum/anchor@npm%3A0.25.0#./.yarn/patches/@project-serum-anchor-npm-0.25.0-7e5041bc3a.patch::locator=root-workspace-0b6124%40workspace%3A.":
   version: 0.25.0
-  resolution: "@project-serum/anchor@patch:@project-serum/anchor@npm%3A0.25.0#./.yarn/patches/@project-serum-anchor-npm-0.25.0-7e5041bc3a.patch::version=0.25.0&hash=a3a567&locator=root-workspace-0b6124%40workspace%3A."
+  resolution: "@project-serum/anchor@patch:@project-serum/anchor@npm%3A0.25.0#./.yarn/patches/@project-serum-anchor-npm-0.25.0-7e5041bc3a.patch::version=0.25.0&hash=1fbde1&locator=root-workspace-0b6124%40workspace%3A."
   dependencies:
     "@project-serum/borsh": ^0.2.5
     "@solana/web3.js": ^1.36.0
@@ -934,7 +941,7 @@ __metadata:
     snake-case: ^3.0.4
     superstruct: ^0.15.4
     toml: ^3.0.0
-  checksum: d9d51b82727c90a6bfd92127427a5216ceb26af7338c66a742f6e2938093b2d7fd5bb6ee9b680ec4b2e3e196b7e8900809e19cd855364abf21104f75b134db6b
+  checksum: 033821d25e3c4b042483972cf172af30319932217d0cee79013b5fc06b8e391473ddddf2f773260223e99a55337294a728beb50793d24b957f2494b2ef7f9fbc
   languageName: node
   linkType: hard
 
@@ -4909,6 +4916,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"lossless-json@npm:^2.0.1":
+  version: 2.0.1
+  resolution: "lossless-json@npm:2.0.1"
+  checksum: 13b9d92ae4759523f953e8c9ca9ec91092f85223597522cb6c5685898c5a35b6d2eff724ba11005d4aa9875b119a95a5146636ca60cc41a988db7730f8146223
+  languageName: node
+  linkType: hard
+
 "lower-case@npm:^2.0.2":
   version: 2.0.2
   resolution: "lower-case@npm:2.0.2"
@@ -5858,6 +5872,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "root-workspace-0b6124@workspace:."
   dependencies:
+    "@juici/math": ^0.1.0
     "@noble/ed25519": ^1.7.1
     "@project-serum/anchor": 0.25.0
     "@solana/buffer-layout": ^4.0.0
@@ -5889,8 +5904,10 @@ __metadata:
     jest-get-type: ^29.2.0
     jest-matcher-utils: ^29.2.2
     jest-message-util: ^29.2.1
+    lossless-json: ^2.0.1
     pako: ^2.1.0
     prettier: ^2.7.1
+    superstruct: ^0.16.7
     toml: ^3.0.0
     ts-jest: ^29.0.3
     ts-node: ^10.9.1
@@ -6269,6 +6286,13 @@ __metadata:
   version: 0.15.5
   resolution: "superstruct@npm:0.15.5"
   checksum: 6d1f5249fee789424b7178fa0a1ffb2ace629c5480c39505885bd8c0046a4ff8b267569a3442fa53b8c560a7ba6599cf3f8af94225aebeb2cf6023f7dd911050
+  languageName: node
+  linkType: hard
+
+"superstruct@npm:^0.16.7":
+  version: 0.16.7
+  resolution: "superstruct@npm:0.16.7"
+  checksum: c8c855ff6945da8a41048c6d236de7b1af5d4d9c31742b3ee54d65647c31597488620281f65e095d5efc9e2fbdaad529b8c8f2506c12569d428467c835a21477
   languageName: node
   linkType: hard
 
