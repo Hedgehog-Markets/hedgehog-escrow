@@ -14,7 +14,7 @@ import {
   __throw,
   createInitAccountInstructions,
   createInitMintInstructions,
-  getBalance,
+  getTokenBalance,
   intoU64,
   intoU64BN,
   sendTx,
@@ -86,7 +86,7 @@ describe("withdraw", () => {
     userPosition = getUserPositionAddress(user, market);
 
     // Top off the user's token account before each test.
-    const topOff = TOP_OFF - intoU64(await getBalance(userTokenAccount));
+    const topOff = TOP_OFF - intoU64(await getTokenBalance(userTokenAccount));
     if (topOff > 0n) {
       await spl.methods
         .mintTo(intoU64BN(topOff))

@@ -14,7 +14,7 @@ export const ATokenErrorCode = parseErrorCodes(atoken.idl.errors);
 /**
  * Gets the balance of the given account.
  */
-export async function getBalance(account: PublicKey | Keypair): Promise<BN> {
+export async function getTokenBalance(account: PublicKey | Keypair): Promise<BN> {
   if ("publicKey" in account) {
     account = account.publicKey;
   }

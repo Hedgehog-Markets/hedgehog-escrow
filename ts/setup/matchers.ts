@@ -16,9 +16,10 @@ import {
 } from "jest-matcher-utils";
 import { formatStackTrace, separateMessageFromStack } from "jest-message-util";
 
-import { ProgramError, __throw, getBalance, intoBN } from "@/utils";
+import { ProgramError, __throw, getTokenBalance, intoBN } from "@/utils";
 
 import type { IntoBigInt } from "@/utils";
+import type { MatcherHintOptions } from "jest-matcher-utils";
 
 type Constructor = new (...args: never) => unknown;
 
@@ -28,7 +29,7 @@ expect.extend({
     const options = {
       isNot: this.isNot,
       promise: this.promise,
-    };
+    } as MatcherHintOptions;
 
     if (!(received instanceof PublicKey)) {
       return {
@@ -66,7 +67,7 @@ expect.extend({
     const options = {
       isNot: this.isNot,
       promise: this.promise,
-    };
+    } as MatcherHintOptions;
 
     expected = intoBN(expected);
 
@@ -102,7 +103,7 @@ expect.extend({
     const options = {
       isNot: this.isNot,
       promise: this.promise,
-    };
+    } as MatcherHintOptions;
 
     let thrown: Thrown | null = null;
 
@@ -230,7 +231,7 @@ expect.extend({
     const options = {
       isNot: this.isNot,
       promise: this.promise,
-    };
+    } as MatcherHintOptions;
 
     expected = intoBN(expected);
 
@@ -254,7 +255,7 @@ expect.extend({
       };
     }
 
-    const balance = await getBalance(received);
+    const balance = await getTokenBalance(received);
 
     const pass = expected.eq(balance);
     const message = pass
