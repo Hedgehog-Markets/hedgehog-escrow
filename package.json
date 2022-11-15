@@ -16,6 +16,7 @@
     "@switchboard-xyz/switchboard-v2": "^0.0.145",
     "bigint-utils": "^0.2.1",
     "bn.js": "^5.2.1",
+    "cross-fetch": "^3.1.5",
     "graceful-fs": "^4.2.10",
     "lossless-json": "^2.0.1",
     "superstruct": "^0.16.7"

@@ -16,3 +16,4 @@ export * from "./transaction";
 export * from "./types";
 
 export * as chain from "./chain";
+export * as rpc from "./rpc";
