@@ -10,9 +10,7 @@ import {
   bigint,
   coerce,
   create,
-  instance,
   literal,
-  number,
   optional,
   type as pick,
   string,
@@ -43,16 +41,16 @@ export type RpcResponseAndContext<T> = {
 };
 
 /**
- * Fetches the balance for the specified public key, returned with context.
+ * Fetches the balance in lamports for the specified public key, returned with context.
  */
 export async function getBalanceAndContext(
   account: PublicKey,
   commitment?: Commitment,
-): Promise<RpcResponseAndContext<BigDecimal>> {
+): Promise<RpcResponseAndContext<bigint>> {
   const unsafeRes = await rpcRequest("getBalance", (connection) =>
     connection._buildArgs([account.toBase58()], commitment),
   );
-  const res = create(unsafeRes, jsonRpcResultAndContext(CoerceBigDecimal));
+  const res = create(unsafeRes, jsonRpcResultAndContext(bigint()));
 
   if ("error" in res) {
     throw new SolanaJSONRPCError(
@@ -64,9 +62,9 @@ export async function getBalanceAndContext(
 }
 
 /**
- * Fetches the balance for the specified public key, returned with context.
+ * Fetches the balance in lamports for the specified public key.
  */
-export async function getBalance(account: PublicKey, commitment?: Commitment): Promise<BigDecimal> {
+export async function getBalance(account: PublicKey, commitment?: Commitment): Promise<bigint> {
   try {
     const result = await getBalanceAndContext(account, commitment);
     return result.value;
@@ -129,12 +127,6 @@ function parseNumber(value: string): bigint | BigDecimal {
   const v = new BigDecimal(value);
   return v.isInt() ? v.toBigInt() : v;
 }
-
-const CoerceBigDecimal = coerce(
-  instance(BigDecimal),
-  union([number(), bigint(), string()]),
-  (value) => new BigDecimal(value),
-);
 
 function createRpcResult<T, U>(result: Struct<T, U>) {
   return union([

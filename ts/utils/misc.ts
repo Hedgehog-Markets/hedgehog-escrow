@@ -1,3 +1,6 @@
+import { BigDecimal } from "@juici/math";
+import { LAMPORTS_PER_SOL } from "@solana/web3.js";
+
 /**
  * Sleep for a given number of milliseconds.
  *
@@ -31,4 +34,11 @@ export function toBuffer(data: Buffer | Uint8Array | ReadonlyArray<number>): Buf
  */
 export function __throw(error: Error): never {
   throw error;
+}
+
+/**
+ * Returns the value of the given lamports in SOL.
+ */
+export function lamportsToSol(lamports: number | bigint): BigDecimal {
+  return new BigDecimal(lamports).div(LAMPORTS_PER_SOL);
 }
