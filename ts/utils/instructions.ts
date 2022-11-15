@@ -5,6 +5,7 @@ import {
   TOKEN_2022_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
   TokenInvalidAccountOwnerError,
+  createAssociatedTokenAccountIdempotentInstruction as _createAssociatedTokenAccountIdempotentInstruction,
   createAssociatedTokenAccountInstruction as _createAssociatedTokenAccountInstruction,
   createInitializeAccount3Instruction,
   createInitializeMint2Instruction,
@@ -37,7 +38,7 @@ export async function createInitMintInstructions({
 }: CreateInitMintParams): Promise<[TransactionInstruction, TransactionInstruction]> {
   const { connection, wallet } = getProvider();
 
-  payer = payer != null ? translateAddress(payer) : wallet.publicKey;
+  payer = translateAddress(payer) ?? wallet.publicKey;
 
   mint = translateAddress(mint);
   mintAuthority = translateAddress(mintAuthority);
@@ -78,7 +79,7 @@ export async function createInitAccountInstructions({
 }: CreateInitAccountParams): Promise<[TransactionInstruction, TransactionInstruction]> {
   const { connection, wallet } = getProvider();
 
-  payer = payer != null ? translateAddress(payer) : wallet.publicKey;
+  payer = translateAddress(payer) ?? wallet.publicKey;
 
   account = translateAddress(account);
   mint = translateAddress(mint);
@@ -122,6 +123,7 @@ type CreateAssociatedTokenAccountParams = {
   mint: Address;
 
   payer?: Address | undefined;
+  programId?: Address | undefined;
 };
 
 export function createAssociatedTokenAccountInstruction({
@@ -129,13 +131,29 @@ export function createAssociatedTokenAccountInstruction({
   owner,
   mint,
   payer,
+  programId,
 }: CreateAssociatedTokenAccountParams): TransactionInstruction {
-  payer = payer != null ? translateAddress(payer) : getProvider().wallet.publicKey;
-
   return _createAssociatedTokenAccountInstruction(
-    payer,
+    translateAddress(payer) ?? getProvider().wallet.publicKey,
     translateAddress(account),
     translateAddress(owner),
     translateAddress(mint),
+    translateAddress(programId),
+  );
+}
+
+export function createAssociatedTokenAccountIdempotentInstruction({
+  account,
+  owner,
+  mint,
+  payer,
+  programId,
+}: CreateAssociatedTokenAccountParams): TransactionInstruction {
+  return _createAssociatedTokenAccountIdempotentInstruction(
+    translateAddress(payer) ?? getProvider().wallet.publicKey,
+    translateAddress(account),
+    translateAddress(owner),
+    translateAddress(mint),
+    translateAddress(programId),
   );
 }

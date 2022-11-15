@@ -12,13 +12,29 @@ export type Address = PublicKey | Keypair | string;
 /**
  * Converts an address into a public key.
  */
-export function translateAddress(address: Address): PublicKey {
-  if (typeof address === "string") {
+export function translateAddress(address: Address): PublicKey;
+export function translateAddress(address: undefined): undefined;
+export function translateAddress(address: Address | undefined): PublicKey | undefined;
+export function translateAddress(address: Address | undefined): PublicKey | undefined {
+  if (address == null) {
+    return undefined;
+  } else if (typeof address === "string") {
     return new PublicKey(address);
   } else if ("publicKey" in address) {
     return address.publicKey;
   }
   return address;
+}
+
+export class ATokenAddress extends PublicKey {
+  constructor(
+    address: PublicKey,
+    readonly owner: PublicKey,
+    readonly mint: PublicKey,
+    readonly programId: PublicKey,
+  ) {
+    super(address);
+  }
 }
 
 /**
@@ -38,7 +54,7 @@ export function getAssociatedTokenAddress(
   allowOwnerOffCurve: boolean = false,
   programId: Address = TOKEN_PROGRAM_ID,
   associatedTokenProgramId: Address = ASSOCIATED_TOKEN_PROGRAM_ID,
-): PublicKey {
+): ATokenAddress {
   owner = translateAddress(owner);
 
   if (!allowOwnerOffCurve && !PublicKey.isOnCurve(owner.toBuffer())) {
@@ -54,5 +70,5 @@ export function getAssociatedTokenAddress(
     associatedTokenProgramId,
   );
 
-  return address;
+  return new ATokenAddress(address, owner, mint, programId);
 }
