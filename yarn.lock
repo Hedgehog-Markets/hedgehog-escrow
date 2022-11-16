@@ -924,7 +924,7 @@ __metadata:
 
 "@project-serum/anchor@patch:@project-serum/anchor@npm%3A0.25.0#./.yarn/patches/@project-serum-anchor-npm-0.25.0-7e5041bc3a.patch::locator=root-workspace-0b6124%40workspace%3A.":
   version: 0.25.0
-  resolution: "@project-serum/anchor@patch:@project-serum/anchor@npm%3A0.25.0#./.yarn/patches/@project-serum-anchor-npm-0.25.0-7e5041bc3a.patch::version=0.25.0&hash=d0b24c&locator=root-workspace-0b6124%40workspace%3A."
+  resolution: "@project-serum/anchor@patch:@project-serum/anchor@npm%3A0.25.0#./.yarn/patches/@project-serum-anchor-npm-0.25.0-7e5041bc3a.patch::version=0.25.0&hash=d1f659&locator=root-workspace-0b6124%40workspace%3A."
   dependencies:
     "@project-serum/borsh": ^0.2.5
     "@solana/web3.js": ^1.36.0
@@ -941,7 +941,7 @@ __metadata:
     snake-case: ^3.0.4
     superstruct: ^0.15.4
     toml: ^3.0.0
-  checksum: 0cd0f294ad97be1957dee5d1897c187dadd4679db83634c8087eee5950918acb797e9b419851b06318e58c32ab0f08bb45e7b0d8bfd451d9f5015fead28d3603
+  checksum: 02b3029205cd5b3294acf4d7c87018e6b493dd8a5f9dbc1b3086f7967d3ebdb3b654acb08e1c1047686d5ebeb8eeef405f1fd8de4590fd660e782fcb0d02ad54
   languageName: node
   linkType: hard
 

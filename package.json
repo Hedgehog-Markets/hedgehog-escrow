@@ -54,7 +54,6 @@
   },
   "packageManager": "yarn@3.2.4",
   "resolutions": {
-    "@project-serum/anchor@0.25.0": "patch:@project-serum/anchor@npm%3A0.25.0#./.yarn/patches/@project-serum-anchor-npm-0.25.0-7e5041bc3a.patch",
-    "@project-serum/anchor@^0.24.2": "patch:@project-serum/anchor@npm%3A0.25.0#./.yarn/patches/@project-serum-anchor-npm-0.25.0-7e5041bc3a.patch"
+    "@project-serum/anchor": "patch:@project-serum/anchor@npm%3A0.25.0#./.yarn/patches/@project-serum-anchor-npm-0.25.0-7e5041bc3a.patch"
   }
 }
