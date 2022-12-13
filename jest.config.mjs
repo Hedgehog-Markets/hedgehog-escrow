@@ -29,7 +29,7 @@ async function readTsConfig(file) {
 
 /**
  * @param {ts.Diagnostic | Array<ts.Diagnostic>} diagnostics
- * @returns {boolean}n
+ * @returns {boolean}
  */
 function emitDiagnostics(diagnostics) {
   if (!Array.isArray(diagnostics)) {
