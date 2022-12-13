@@ -1,12 +1,38 @@
-
-.anchor
+# Misc.
+.idea
 .DS_Store
-target
-test-ledger
-**/*.rs.bk
-node_modules
+.eslintcache
+.env
+*.swp
+*~
 
-# Secrets
-test_wallet.json
-devnet-authority
-mainnet-authority
+# Dependencies/Build.
+/node_modules/
+/build/
+
+# Logs.
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# NPM lockfile.
+package-lock.json
+
+# Typescript.
+*.tsbuildinfo
+
+# Rust
+/target/
+**/*.rs.bk
+
+# Yarn.
+**/.yarn/*
+!**/.yarn/patches
+!**/.yarn/releases
+!**/.yarn/plugins
+!**/.yarn/sdks
+!**/.yarn/versions
+**/.pnp.*
+
+# Credentials.
+/test_wallet.json

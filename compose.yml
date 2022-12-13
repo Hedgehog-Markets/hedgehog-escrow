@@ -1,0 +1,24 @@
+version: "3.8"
+
+name: switchboard-oracle
+
+services:
+  switchboard:
+    build: .
+    network_mode: host
+    restart: always
+    secrets:
+      - PAYER_SECRETS
+    environment:
+      - CHAIN=solana
+      - LIVE=0
+      - CLUSTER=localnet
+      - RPC_URL=${RPC_URL}
+      - ORACLE_KEY=${ORACLE_KEY}
+      - HEARTBEAT_INTERVAL=1
+      - TASK_RUNNER_SOLANA_RPC=${RPC_URL}
+      - VERBOSE=1
+
+secrets:
+  PAYER_SECRETS:
+    file: ./test_wallet.json

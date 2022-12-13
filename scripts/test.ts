@@ -1,22 +1,27 @@
 #!/usr/bin/env -S ts-node --transpile-only
 
-import fs from "fs";
+import { spawn } from "child_process";
 import os from "os";
 import path from "path";
 import process from "process";
-import { spawn } from "child_process";
 
+import { Connection } from "@solana/web3.js";
 import { Command } from "commander";
-import { Keypair, Connection } from "@solana/web3.js";
+import fs from "graceful-fs";
+
 import {
   PROJECT_DIR,
-  programs,
   anchorToml,
-  walletPath,
-  wallet,
   atexit,
   build,
+  fetchSwitchboard,
+  programs,
+  switchboard,
+  wallet,
+  walletPath,
 } from "./utils";
+
+import type { Keypair } from "@solana/web3.js";
 
 // Default is 64, this makes transactions faster.
 const TICKS_PER_SLOT = 8;
@@ -40,7 +45,7 @@ const { verbose, opts, tests } = (() => {
     skipBuild: boolean;
     skipFlaky: boolean;
   };
-  type Args = [string[]];
+  type Args = [Array<string>];
 
   const program = new Command("test")
     .showHelpAfterError(true)
@@ -85,32 +90,40 @@ if (verbose) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-if (!opts.skipBuild) {
-  for (const program of programs.values()) {
-    build(program, verbose);
+void (async () => {
+  if (!opts.skipBuild) {
+    for (const program of programs.values()) {
+      await build(program, verbose);
+    }
   }
-}
+  await fetchSwitchboard();
 
-void startValidator(ledger, wallet).then(() => {
-  const jest = require.resolve("jest/bin/jest");
-  const args = [];
+  await startValidator(ledger, wallet);
 
-  if (opts.grep !== undefined) {
-    args.push("--testNamePattern", opts.grep);
+  {
+    const jest = require.resolve("jest/bin/jest");
+    const args = [];
+
+    if (verbose) {
+      args.push("--verbose");
+    }
+    if (opts.grep !== undefined) {
+      args.push("--testNamePattern", opts.grep);
+    }
+
+    args.push("--", ...tests);
+
+    spawn(jest, args, {
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        ANCHOR_PROVIDER_URL: `${LOCALHOST}:${RPC_PORT}`,
+        ANCHOR_WALLET: walletPath,
+        SKIP_FLAKY: opts.skipFlaky ? "1" : undefined,
+      },
+    }).on("exit", (code) => process.exit(code ?? 1));
   }
-
-  args.push("--", ...tests);
-
-  spawn(jest, args, {
-    stdio: "inherit",
-    env: {
-      ...process.env,
-      ANCHOR_PROVIDER_URL: `${LOCALHOST}:${RPC_PORT}`,
-      ANCHOR_WALLET: walletPath,
-      SKIP_FLAKY: opts.skipFlaky ? "1" : undefined,
-    },
-  }).on("exit", (code) => process.exit(code ?? 1));
-});
+})();
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -121,7 +134,7 @@ void startValidator(ledger, wallet).then(() => {
  * @param wallet Wallet to use for the validator mint.
  */
 function startValidator(ledger: string, wallet: Keypair): Promise<void> {
-  const args: string[] = [];
+  const args: Array<string> = [];
   args.push("--ledger", ledger);
   args.push("--mint", wallet.publicKey.toBase58());
   args.push("--rpc-port", RPC_PORT.toString());
@@ -154,12 +167,15 @@ function startValidator(ledger: string, wallet: Keypair): Promise<void> {
   // Load the program data as accounts to simulate deployed programs.
   for (const program of programs.values()) {
     args.push("--account", program.address.toBase58(), program.accountPath);
-    args.push("--account", program.pda.toBase58(), program.exeAccountPath);
-    args.push(
-      "--account",
-      program.idlAddress.toBase58(),
-      program.idlAccountPath,
-    );
+    args.push("--account", program.exeAddress.toBase58(), program.exeAccountPath);
+    args.push("--account", program.idlAddress.toBase58(), program.idlAccountPath);
+  }
+
+  // Load the Switchboard program.
+  {
+    args.push("--account", switchboard.address.toBase58(), switchboard.accountPath);
+    args.push("--account", switchboard.exeAddress.toBase58(), switchboard.exeAccountPath);
+    args.push("--account", switchboard.idlAddress.toBase58(), switchboard.idlAccountPath);
   }
 
   const validator = spawn("solana-test-validator", args, { shell: false });
@@ -223,9 +239,7 @@ function waitForValidator(): Promise<void> {
           }
 
           if (reason === "timeout" || process.hrtime.bigint() >= end) {
-            console.error(
-              "error: test validator does not appear to be running",
-            );
+            console.error("error: test validator does not appear to be running");
             process.exit(1);
           }
           setTimeout(wait, 1);

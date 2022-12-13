@@ -1,22 +1,25 @@
 #!/usr/bin/env -S ts-node --transpile-only
 
-import type { Keypair } from "@solana/web3.js";
-
-import fs from "fs";
+import { spawnSync } from "child_process";
 import os from "os";
 import path from "path";
 import process from "process";
-import { execFileSync } from "child_process";
 
 import { Command } from "commander";
+import fs from "graceful-fs";
+
 import {
   PROJECT_DIR,
-  programs,
   anchorToml,
-  wallet,
   atexit,
   build,
+  fetchSwitchboard,
+  programs,
+  switchboard,
+  wallet,
 } from "./utils";
+
+import type { Keypair } from "@solana/web3.js";
 
 // Default is 64, this makes transactions faster.
 const TICKS_PER_SLOT = 8;
@@ -38,6 +41,7 @@ const { verbose, opts } = (() => {
     .showHelpAfterError(true)
     .showSuggestionAfterError(true)
     .helpOption("-h, --help", "display this help message and exit")
+    .option("-v, --verbose", "use verbose output", false)
     .option("--skip-build", "skip building programs", false)
     .parse();
 
@@ -67,13 +71,21 @@ atexit(() => {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-if (!opts.skipBuild) {
-  for (const program of programs.values()) {
-    build(program, verbose);
+void (async () => {
+  if (!opts.skipBuild) {
+    for (const program of programs.values()) {
+      await build(program, verbose);
+    }
   }
-}
+  await fetchSwitchboard();
 
-startValidator(ledger, wallet);
+  startValidator(ledger, wallet);
+})()
+  .catch((err) => {
+    console.error(String(err));
+    process.exitCode = 1;
+  })
+  .finally(() => process.exit());
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -83,8 +95,8 @@ startValidator(ledger, wallet);
  * @param ledger Path to the ledger directory.
  * @param wallet Wallet to use for the validator mint.
  */
-function startValidator(ledger: string, wallet: Keypair) {
-  const args: string[] = [];
+function startValidator(ledger: string, wallet: Keypair): void {
+  const args: Array<string> = [];
   args.push("--ledger", ledger);
   args.push("--mint", wallet.publicKey.toBase58());
   args.push("--rpc-port", RPC_PORT.toString());
@@ -117,16 +129,33 @@ function startValidator(ledger: string, wallet: Keypair) {
   // Load the program data as accounts to simulate deployed programs.
   for (const program of programs.values()) {
     args.push("--account", program.address.toBase58(), program.accountPath);
-    args.push("--account", program.pda.toBase58(), program.exeAccountPath);
-    args.push(
-      "--account",
-      program.idlAddress.toBase58(),
-      program.idlAccountPath,
-    );
+    args.push("--account", program.exeAddress.toBase58(), program.exeAccountPath);
+    args.push("--account", program.idlAddress.toBase58(), program.idlAccountPath);
   }
 
-  execFileSync("solana-test-validator", args, {
+  // Load the Switchboard program.
+  {
+    args.push("--account", switchboard.address.toBase58(), switchboard.accountPath);
+    args.push("--account", switchboard.exeAddress.toBase58(), switchboard.exeAccountPath);
+    args.push("--account", switchboard.idlAddress.toBase58(), switchboard.idlAccountPath);
+  }
+
+  const result = spawnSync("solana-test-validator", args, {
     shell: false,
     stdio: "inherit",
   });
+
+  if (result.status) {
+    if (verbose) {
+      const logFile = path.join(ledger, "validator.log");
+      try {
+        const log = fs.readFileSync(logFile, "utf8");
+        console.debug(log);
+      } catch (_) {
+        // noop
+      }
+    }
+
+    throw new Error(`Solana test validator returned a non-zero exit code: ${result.status}`);
+  }
 }

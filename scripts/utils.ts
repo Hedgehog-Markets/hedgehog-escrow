@@ -1,13 +1,14 @@
-import fs from "fs";
-import path from "path";
-import process from "process";
 import { spawnSync } from "child_process";
 import { createHash } from "crypto";
+import path from "path";
+import process from "process";
 
-import toml from "toml";
-import pako from "pako";
-import { Keypair, PublicKey } from "@solana/web3.js";
 import { BorshAccountsCoder } from "@project-serum/anchor";
+import { Connection, Keypair, PublicKey, clusterApiUrl } from "@solana/web3.js";
+import { SBV2_DEVNET_PID } from "@switchboard-xyz/switchboard-v2";
+import fs from "graceful-fs";
+import pako from "pako";
+import toml from "toml";
 
 export const PROJECT_DIR = path.dirname(__dirname);
 export const PROGRAMS_DIR = path.join(PROJECT_DIR, "programs");
@@ -20,9 +21,7 @@ export const BPF_LOADER_UPGRADEABLE_PROGRAM_ID = new PublicKey(
 );
 
 // https://github.com/solana-labs/solana/blob/aea84e699c904235b8d6406b9424c22449e8254f/sdk/program/src/rent.rs#L31
-export const LAMPORTS_PER_BYTE_YEAR = Number(
-  ((1_000_000_000n / 100n) * 365n) / (1024n * 1024n),
-);
+export const LAMPORTS_PER_BYTE_YEAR = Number(((1_000_000_000n / 100n) * 365n) / (1024n * 1024n));
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,22 +57,24 @@ export const wallet = readKeypair(walletPath);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const IDL_ACCOUNT_DISCRIMINATOR =
-  BorshAccountsCoder.accountDiscriminator("IdlAccount");
+const IDL_ACCOUNT_DISCRIMINATOR = BorshAccountsCoder.accountDiscriminator("IdlAccount");
 
-function getIdlAccountAddress(program: PublicKey): PublicKey {
+export function getExecutableAddress(program: PublicKey): PublicKey {
+  return PublicKey.findProgramAddressSync(
+    [program.toBytes()],
+    BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
+  )[0];
+}
+
+export function getIdlAccountAddress(program: PublicKey): PublicKey {
   const [signer] = PublicKey.findProgramAddressSync([], program);
-  const buf = Buffer.concat([
-    signer.toBytes(),
-    Buffer.from("anchor:idl"),
-    program.toBytes(),
-  ]);
+  const buf = Buffer.concat([signer.toBytes(), Buffer.from("anchor:idl"), program.toBytes()]);
   return new PublicKey(createHash("sha256").update(buf).digest());
 }
 
 export class Program {
   readonly address: PublicKey;
-  readonly pda: PublicKey;
+  readonly exeAddress: PublicKey;
   readonly idlAddress: PublicKey;
 
   readonly accountPath: string;
@@ -85,10 +86,7 @@ export class Program {
       anchorToml.programs?.localnet?.[lib] ??
         __throw(new Error(`missing [program.localnet] entry for '${lib}'`)),
     );
-    this.pda = PublicKey.findProgramAddressSync(
-      [this.address.toBytes()],
-      BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
-    )[0];
+    this.exeAddress = getExecutableAddress(this.address);
     this.idlAddress = getIdlAccountAddress(this.address);
 
     this.accountPath = path.join(ACCOUNTS_DIR, `${lib}.json`);
@@ -100,12 +98,12 @@ export class Program {
     return this.name;
   }
 
-  public elf(): Uint8Array {
-    return fs.readFileSync(path.join(DEPLOY_DIR, `${this.lib}.so`));
+  public async elf(): Promise<Uint8Array> {
+    return fs.promises.readFile(path.join(DEPLOY_DIR, `${this.lib}.so`));
   }
 
-  public idl(): Uint8Array {
-    const idl = fs.readFileSync(path.join(IDL_DIR, `${this.lib}.json`));
+  public async idl(): Promise<Uint8Array> {
+    const idl = await fs.promises.readFile(path.join(IDL_DIR, `${this.lib}.json`));
     return pako.deflate(idl);
   }
 }
@@ -113,7 +111,7 @@ export class Program {
 export const programs = (() => {
   const programs = new Map<string, Program>();
 
-  let entries: fs.Dirent[];
+  let entries: Array<fs.Dirent>;
   try {
     entries = fs.readdirSync(PROGRAMS_DIR, { withFileTypes: true });
   } catch (e) {
@@ -140,8 +138,7 @@ export const programs = (() => {
 
   const metadata = JSON.parse(result.stdout);
   const packages =
-    metadata?.packages ??
-    __throw(new Error("missing 'packages' entry in workspace metadata"));
+    metadata?.packages ?? __throw(new Error("missing 'packages' entry in workspace metadata"));
 
   if (!Array.isArray(packages)) {
     throw new Error("'packages' entry in workspace metadata is not an array");
@@ -150,9 +147,7 @@ export const programs = (() => {
   for (const pkg of packages) {
     const name = pkg.name ?? __throw(new Error("missing package name"));
     if (programNames.delete(name)) {
-      const lib =
-        pkg.targets?.[0]?.name ??
-        __throw(new Error("missing package target name"));
+      const lib = pkg.targets?.[0]?.name ?? __throw(new Error("missing package target name"));
 
       const program = new Program(name, lib);
       programs.set(name, program);
@@ -184,7 +179,7 @@ function exitHandler() {
 /**
  * Add a handler to be called on process exit.
  */
-export function atexit(fn: () => void) {
+export function atexit(fn: () => void): void {
   if (exitHandlers === undefined) {
     exitHandlers = [];
 
@@ -202,14 +197,40 @@ export function atexit(fn: () => void) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const getAccountJson = ({
+  pubkey,
+  account: { lamports, data, owner, executable, rentEpoch },
+}: {
+  pubkey: PublicKey | string;
+  account: {
+    lamports?: number;
+    data: Buffer;
+    owner: PublicKey | string;
+    executable: boolean;
+    rentEpoch?: number;
+  };
+}): string =>
+  JSON.stringify({
+    pubkey,
+    account: {
+      lamports: lamports ?? minLamportsForRentExempt(data.length),
+      data: [data.toString("base64"), "base64"],
+      owner,
+      executable,
+      rentEpoch: rentEpoch ?? 0,
+    },
+  });
+
+const createAccountsDir = () => fs.promises.mkdir(ACCOUNTS_DIR, { recursive: true });
+
 /**
  * Build a program.
  */
-export function build(program: Program, verbose: boolean = false) {
-  const args: string[] = ["build"];
-  args.push("--program-name", program.lib); // Build lib.
-
+export async function build(program: Program, verbose: boolean = false): Promise<void> {
   console.log(`Building ${program}`);
+
+  const args: Array<string> = ["build"];
+  args.push("--program-name", program.lib); // Build lib.
 
   const result = spawnSync("anchor", args, {
     shell: false,
@@ -222,31 +243,29 @@ export function build(program: Program, verbose: boolean = false) {
 
   console.log();
 
-  fs.mkdirSync(ACCOUNTS_DIR, { recursive: true });
+  await createAccountsDir();
 
   // Write the account data for the program.
-  {
+  const writeProgram = async () => {
     const data = Buffer.alloc(4 + 32);
     data.writeUint32LE(2, 0); // State: Program.
-    data.set(program.pda.toBytes(), 4); // Program address.
+    data.set(program.exeAddress.toBytes(), 4); // Program address.
 
-    const accountData = JSON.stringify({
-      pubkey: program.address.toBase58(),
+    const json = getAccountJson({
+      pubkey: program.address,
       account: {
-        lamports: minLamportsForRentExempt(data.length),
-        data: [data.toString("base64"), "base64"],
-        owner: BPF_LOADER_UPGRADEABLE_PROGRAM_ID.toBase58(),
+        data,
+        owner: BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
         executable: true,
-        rentEpoch: 0,
       },
     });
 
-    fs.writeFileSync(program.accountPath, accountData);
-  }
+    await fs.promises.writeFile(program.accountPath, json, "utf-8");
+  };
 
   // Write the account data for the executable.
-  {
-    const elf = program.elf();
+  const writeExe = async () => {
+    const elf = await program.elf();
 
     const data = Buffer.alloc(4 + 8 + 1 + 32 + elf.length);
     data.writeUint32LE(3, 0); // State: Program data.
@@ -255,23 +274,21 @@ export function build(program: Program, verbose: boolean = false) {
     data.set(wallet.publicKey.toBytes(), 4 + 8 + 1); // Upgrade authority address.
     data.set(elf, 4 + 8 + 1 + 32); // Raw program data.
 
-    const accountData = JSON.stringify({
-      pubkey: program.pda.toBase58(),
+    const json = getAccountJson({
+      pubkey: program.exeAddress,
       account: {
-        lamports: minLamportsForRentExempt(data.length),
-        data: [data.toString("base64"), "base64"],
-        owner: BPF_LOADER_UPGRADEABLE_PROGRAM_ID.toBase58(),
+        data,
+        owner: BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
         executable: false,
-        rentEpoch: 0,
       },
     });
 
-    fs.writeFileSync(program.exeAccountPath, accountData);
-  }
+    await fs.promises.writeFile(program.exeAccountPath, json, "utf-8");
+  };
 
   // Write the account data for the IDL.
-  {
-    const idl = program.idl();
+  const writeIdl = async () => {
+    const idl = await program.idl();
 
     const data = Buffer.alloc(8 + 32 + 4 + idl.length);
     data.set(IDL_ACCOUNT_DISCRIMINATOR, 0); // Discriminator.
@@ -279,19 +296,89 @@ export function build(program: Program, verbose: boolean = false) {
     data.writeUint32LE(idl.length, 40); // Compressed IDL length.
     data.set(idl, 44); // Compressed IDL bytes.
 
-    const accountData = JSON.stringify({
-      pubkey: program.idlAddress.toBase58(),
+    const json = getAccountJson({
+      pubkey: program.idlAddress,
       account: {
-        lamports: minLamportsForRentExempt(data.length),
-        data: [data.toString("base64"), "base64"],
-        owner: program.address.toBase58(),
+        data,
+        owner: program.address,
         executable: false,
-        rentEpoch: 0,
       },
     });
 
-    fs.writeFileSync(program.idlAccountPath, accountData);
+    await fs.promises.writeFile(program.idlAccountPath, json, "utf-8");
+  };
+
+  await Promise.all([writeProgram(), writeExe(), writeIdl()]);
+}
+
+export const switchboard = (() => {
+  const lib = "switchboard_v2";
+  const address = SBV2_DEVNET_PID;
+
+  return {
+    lib,
+
+    address,
+    exeAddress: getExecutableAddress(address),
+    idlAddress: getIdlAccountAddress(address),
+
+    accountPath: path.join(ACCOUNTS_DIR, `${lib}.json`),
+    exeAccountPath: path.join(ACCOUNTS_DIR, `${lib}-exe.json`),
+    idlAccountPath: path.join(ACCOUNTS_DIR, `${lib}-idl.json`),
+  } as const;
+})();
+
+/**
+ * Fetch the Switchboard program from Devnet.
+ */
+export async function fetchSwitchboard(): Promise<void> {
+  const connection = new Connection(clusterApiUrl("devnet"));
+
+  let latest: number | undefined;
+
+  // Get the latest transaction for the executable data.
+  const [sigInfo] = await connection.getConfirmedSignaturesForAddress2(switchboard.exeAddress, {
+    limit: 1,
+  });
+
+  if (sigInfo) {
+    latest = sigInfo.blockTime ?? (await connection.getBlockTime(sigInfo.slot)) ?? undefined;
   }
+
+  await createAccountsDir();
+
+  const accounts = [
+    [switchboard.address, switchboard.accountPath],
+    [switchboard.exeAddress, switchboard.exeAccountPath],
+    [switchboard.idlAddress, switchboard.idlAccountPath],
+  ] as const;
+
+  await Promise.all(
+    accounts.map(async ([address, file]) => {
+      let stat: fs.Stats | undefined;
+      try {
+        stat = await fs.promises.stat(file);
+      } catch (err) {
+        // Don't throw if the error is due to the file not existing.
+        if (!isErrnoException(err) || err.code !== "ENOENT") {
+          throw err;
+        }
+      }
+
+      if (stat?.isFile() && (!latest || stat.mtimeMs / 1000 >= latest)) {
+        // Up-to-date.
+        return;
+      }
+
+      const account =
+        (await connection.getAccountInfo(address)) ??
+        __throw(new Error(`Failed to get account info for '${address}'`));
+
+      const accountJson = getAccountJson({ pubkey: address, account });
+
+      await fs.promises.writeFile(file, accountJson, "utf-8");
+    }),
+  );
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -335,3 +422,26 @@ export function minLamportsForRentExempt(size: number): number {
 export function __throw(error: Error): never {
   throw error;
 }
+
+const isErrnoException = (() => {
+  const schema = new Map([
+    ["code", new Set(["string", "undefined"])],
+    ["errno", new Set(["number", "undefined"])],
+    ["path", new Set(["string", "undefined"])],
+    ["syscall", new Set(["string", "undefined"])],
+  ]) as ReadonlyMap<string, ReadonlySet<string>>;
+
+  return (err: unknown): err is NodeJS.ErrnoException => {
+    if (!(err instanceof Error)) {
+      return false;
+    }
+
+    for (const [prop, types] of schema.entries()) {
+      if (!types.has(typeof (err as unknown as Record<PropertyKey, unknown>)[prop])) {
+        return false;
+      }
+    }
+
+    return true;
+  };
+})();

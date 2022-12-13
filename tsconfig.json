@@ -1,21 +1,44 @@
 {
   "compilerOptions": {
-    "baseUrl": ".",
-    "moduleResolution": "node",
-    "module": "commonjs",
-    "types": ["jest"],
-    "typeRoots": ["./node_modules/@types"],
     "lib": ["esnext"],
-    "target": "es2022",
-    "esModuleInterop": true,
-    "sourceMap": true,
+    "module": "commonjs",
+    "target": "esnext",
+    "moduleResolution": "node",
     "forceConsistentCasingInFileNames": true,
+
+    "noEmit": true,
     "importsNotUsedAsValues": "error",
+    "stripInternal": true,
+
+    "strict": true,
+
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "noImplicitOverride": true,
     "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
-    "strict": true,
-    "exactOptionalPropertyTypes": true
+    "exactOptionalPropertyTypes": true,
+
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+
+    // Defining a baseUrl provides better intellisense for paths, but also
+    // allows the use of non-absolute modules names, eg. "a/b".
+    //
+    // This is a hack which prevents the use of non-absolute module names, by
+    // using a non-existent directory.
+    "baseUrl": "ts/__fakepath__",
+    "paths": {
+      "@/*": ["../*"],
+      "@idl/*": ["../../target/types/*"]
+    }
   },
-  "include": ["tests/**/*.ts", "migrations/**/*.ts", "scripts/**/*.ts"]
+  "ts-node": {
+    "transpileOnly": true,
+    "require": ["tsconfig-paths/register"]
+  },
+  "include": ["scripts", "ts"],
+  "exclude": ["node_modules"]
 }

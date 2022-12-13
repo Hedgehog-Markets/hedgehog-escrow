@@ -1,0 +1,14 @@
+# Misc.
+.idea
+.DS_Store
+.eslintcache
+*.swp
+*~
+
+# Dependencies/Build.
+/node_modules/
+/build/
+
+# Yarn.
+**/.yarn
+**/.pnp.*

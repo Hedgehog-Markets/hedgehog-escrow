@@ -1,3 +1,5 @@
+#![allow(clippy::result_large_err)]
+
 #[doc(hidden)]
 pub mod _private {
     pub use anchor_lang;
